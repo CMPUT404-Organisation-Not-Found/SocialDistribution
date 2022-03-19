@@ -2,22 +2,84 @@
 
 {% block title%}Login{% endblock %}
 
-
-
 {% block content %}
 
 {% load static %}
-<link rel="stylesheet" type="text/css" href = "{% static 'css/login.css' %}">
+<link rel="stylesheet" type="text/css" href = "{% static 'css/signup.css' %}">
 
-<div class="container" style="margin-top:2rem">
-    <div class="row justify-content-center mx-auto">
-        <!-- <div class="col-8 justify-content-center"> -->
-            <div class="col-3 my-auto">
-                <img src="{% static 'images/htf2.jpg' %}" alt="htf-cover">
+<div class="container text-font h-100" style="background-color: #FBFBFB; padding-top: 5%;">
+    <div class="row justify-content-center">
+        <div class="col-8 justify-content-center">
+
+            <!-- Header Row -->
+
+            <div class="row">
+                <div class="col-6 my-auto">
+                    <div class="poster-font text-center">
+                        Happy Tree Friends
+                    </div>
+                </div>
+                <div class="col-6 my-auto">
+                    <div class="poster-font text-center secondary-color">
+                        Login
+                    </div>
+                </div>
             </div>
-            <div class="col-4 rounded" style="background-color: #FBFBFB;">
+
+            <!-- Row for Form and Image -->
+
+            <div class="row align-content-center" style="display: flex; padding-top: 2em;">
+                <div class="col-6 justify-content-center" style="flex: 1; text-align: center;">
+                    <div class="row mx-auto" style="width: 200px; padding-top: 2em;">
+                        <div class="col-12 justify-content-center" style="background-color: #F5CAC3; ">
+                            <img class="img mx-auto" src="{% static 'images/htf2.jpg' %}" alt="htf-cover">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-4 mx-auto" style="flex: 1;">
+                    <form method="POST" action="." class="login-form spacer" id="signup-form">
+                        {% csrf_token %}
+                        <!-- {{ form.as_p }} -->
+                        <div class="form-group">
+                            <label class="text-font" for="username">Username</label>
+                                {{ form.username }}
+                        </div>
+                        <div class="form-group">
+                            <label class="text-font" for="password1">Password</label>
+                                {{ form.password }}
+                        </div>
+                        <div class="" style="padding-bottom: 2em;">
+                            {{form.errors}}
+                        </div>
+                        <div class="row justify-content-center">
+                            <input type="submit" class="submit btn submit-button text-center" value="Login">
+                        </div>
+                    </form>
+                </div> 
+
+                <!-- Create an account -->
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="redirect text-center">
+                            <span>
+                                Don't have an account? <a href="{% url 'signup' %}" class="highlight-or-false">Signup</a> <br>
+                            </span>
+                            <a class="highlight-or-false" href="{% url 'password_reset' %}" class="link">Forgot password?</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>  
+</div>
+
+
+            <!-- <div class="col-6 my-auto">
+                <h1>Happy Tree Friends</h1>
+            </div>
+            <div class="col-6" style="background-color: #FBFBFB;">
                 <div class="text-center title poster-font" style="margin-bottom: 2rem;">
-                    <h1>Happy Tree Friends</h1>
                 </div>
                 <div class="text-font secondary-color" style="padding: 0.3rem; font-size: small">
                     <p>{{ form.non_field_errors }}</p>
@@ -43,9 +105,7 @@
                         Dont have an account? <a href="{% url 'signup' %}" class="highlight-or-false"><u>Signup</u></a>
                     </div>
                 </div>
-            </div>
+            </div> -->
         <!-- </div> -->
-    </div>
-</div>
 
 {% endblock %}

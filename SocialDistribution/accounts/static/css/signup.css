@@ -36,3 +36,8 @@ label {
     padding-top:1em;
     padding-bottom:1em;
 }
+
+#id_username #id_password {
+    width: 100%;
+    border-radius: 3em;
+}
