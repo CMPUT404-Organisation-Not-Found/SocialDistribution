@@ -1,5 +1,5 @@
 from django import forms
-from .models import Post, Comment, Author
+from .models import Post, Comment, Author, Category
 
 # Reference: https://www.youtube.com/watch?v=USVjTtApVDM&list=PLPSM8rIid1a3TkwEmHyDALNuHhqiUiU5A&index=2
 class PostForm(forms.ModelForm):
@@ -11,6 +11,13 @@ class PostForm(forms.ModelForm):
         })
     )
     description = forms.CharField(label='description', 
+        widget=forms.Textarea(attrs={
+            'placeholder': 'Give a brief description of the post.',
+            'rows':1,
+            'style': 'width: 85%;'
+        })
+    )
+    content = forms.CharField(label='content', 
         widget=forms.Textarea(attrs={
             'placeholder': 'Type something...',
             # 'rows':5,
@@ -25,18 +32,20 @@ class PostForm(forms.ModelForm):
     #         'style': 'width: 85%;'
     #     })
     # )
-    # TODO: categories as a list of strings
-    categories = forms.CharField(label='categories',
+
+    unparsedCategories = forms.CharField(label='categories',
         widget=forms.Textarea(attrs={
-            'placeholder': 'Which categories does it belong to...',
-            'rows':1,
+            'placeholder': 'Separate your categories with space e.g. web_dev CMPUT404',
+            'rows':2,
             'style': 'width: 85%;'
         })
     )
+    
+    # categories = forms.ModelMultipleChoiceField(queryset=Category.objects.all())
 
     class Meta:
         model = Post
-        fields = ['title', 'description', 'contentType', 'categories', 'visibility', 'post_image']
+        fields = ['title', 'description', 'content', 'contentType', 'unparsedCategories', 'visibility', 'post_image']
 
 
 class CommentForm(forms.ModelForm):
@@ -52,7 +61,7 @@ class CommentForm(forms.ModelForm):
 
     class Meta:
         model = Comment
-        fields = ['comment']
+        fields = ['comment', 'contentType']
 
 # class AuthorForm(forms.ModelForm):
 #     class Meta:

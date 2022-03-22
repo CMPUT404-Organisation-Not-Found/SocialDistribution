@@ -20,15 +20,15 @@
                     {% csrf_token %}
                     <img style="width: 25%;" src="{{ current_author_info.profileImage }}"
                          class='avatar'/>
-                    <div class="userInfo">user id: {{ current_author_info.id }}</div>
+                    <div class="userInfo">user id: {{ current_author_info.username }}</div>
                     <div class="userInfo">name: {{ current_author_info.displayName }}</div>
                     <!-- <button class="followerButton">Follower</button> -->
                     <!-- <a href="#" class="followButton">Follower</a> -->
                     <span class="userInfo" style="padding: left;"><b>{{ count_following }}  Following</b></span>
                     <span class="userInfo" style="padding: 50px;"><b>{{ count_followers }}  Followers</b></span>
                     <input type="hidden" value="{{ user.username }}" name="follower"/>
-                    <input type="hidden" value="{{ current_author_info.id }}" name="user"/>
-                    {% if current_author_info.id == user.username %}
+                    <input type="hidden" value="{{ current_author_info.username }}" name="user"/>
+                    {% if current_author_info.username == user.username %}
                         <a href="" data-ripple="">Edit Account</a>
                     {% else %}
                         <a data-ripple="">
@@ -70,7 +70,7 @@
                         <div class="postActions" style="float: left; margin-left: 7%; font-size: 12px;"><a style="color: rgb(135, 172, 228); font-style: italic;" href="{{ post.origin }}">link to the original post</a></div>
                     
                     {% else %}
-                        <div class="authorName">Author: {{ post.author.id }}</div>
+                        <div class="authorName">Author: {{ post.author.username }}</div>
                         <div class="postTitle">{{ post.title }}</div>
                         <div class="postBody">{{ post.description }}</div>
                     {% endif %}    
@@ -78,14 +78,14 @@
                             <div class="postVis">Visibility: {{ post.visibility }}</div>
                         </div>
                         <!-- <div>UUID: {{ post.id }}</div> -->
-                        <div class="postActions"><a href="{% url 'myapp:sharePost' post.id %}"><i class="fa-solid fa-share"></i>&ensp;Share</a>&emsp;<a
-                                href="/like?post_id={{post.id}}"><i class="fa-solid fa-heart"></i>&ensp;{{post.likes}}</a>&emsp;<a
-                                href="{% url 'myapp:postDetail' post.id %}"><i class="fa-solid fa-comment"></i>&ensp;{{ post.count }}&emsp;</a>
+                        <div class="postActions"><a href="{% url 'myapp:sharePost' post.uuid %}"><i class="fa-solid fa-share"></i>&ensp;Share</a>&emsp;<a
+                                href="/like?post_id={{post.uuid}}"><i class="fa-solid fa-heart"></i>&ensp;{{post.likes}}</a>&emsp;<a
+                                href="{% url 'myapp:postDetail' post.uuid %}"><i class="fa-solid fa-comment"></i>&ensp;{{ post.count }}&emsp;</a>
                         </div>
                         {% if post.type == 'post'%}
-                        <a href="{% url 'myapp:postDetail' post.id %}" class="stretched-link"></a>
+                        <a href="{% url 'myapp:postDetail' post.uuid %}" class="stretched-link"></a>
                         {% else %}
-                        <a href="{% url 'myapp:shareDetail' post.id %}" class="stretched-link"></a>
+                        <a href="{% url 'myapp:shareDetail' post.uuid %}" class="stretched-link"></a>
                         {% endif %}
                     </div>
                 {% endfor %}

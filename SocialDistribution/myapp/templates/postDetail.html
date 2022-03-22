@@ -4,6 +4,7 @@
 
 {% block content %}
 {% load static %}
+{% load markdownify %}
 
 <link rel="stylesheet" type="text/css" href="{% static 'css/postDetail.css' %}">
     <body>
@@ -16,22 +17,44 @@
                 <div>
                     <div class="singlePost">
                         <div class="postTitle">{{ post.title }}</div> 
-                        {% if request.user.username == post.author.id %}
-                            <a href="{% url 'myapp:postEdit' post.id %}"><i class="fa-solid fa-pen-to-square"></i></a>
-                            <a href="{% url 'myapp:postDelete' post.id %}"><i class="fa-solid fa-trash-can"></i></a>
+                        {% if request.user.username == post.author.username %}
+                            <a href="{% url 'myapp:postEdit' post.uuid %}"><i class="fa-solid fa-pen-to-square"></i></a>
+                            <a href="{% url 'myapp:postDelete' post.uuid %}"><i class="fa-solid fa-trash-can"></i></a>
                         {% endif%}
-                        <div class="postBody">{{ post.description }}</div>
+
+                        
+                        {% if post.contentType == "text/markdown" %}
+                                <div class="postBody">{{ post.content | markdownify}}</div>
+                            {% else %}
+                                <div class="postBody">{{ post.content }}</div>
+                        {% endif %}
+
+                        
                         <!-- <div class="postBody">Categories: {{ post.categories }}</div> -->
                         <!-- <div class="postBody">{{ post.contentType }}</div> -->
                         <!-- <div class="postBody">{{ post.count }}</div> -->
                         <div class="postBody">
                             {% if post.post_image %}
-                            <img src="{{ post.post_image.url }}" width=100%>
+                                <img src="data:image/jpg;base64, {{ image_b64 }}" width=100%>
                             {% endif %}
+                            
                         </div>
-                        <div class="postActions"><a href="{% url 'myapp:sharePost' post.id %}"><i class="fa-solid fa-share"></i>&ensp;Share</a>&emsp;
-                            <a href="{% url 'myapp:liked' post.id %}"><i class="fa-solid fa-heart"></i>&ensp;Likes</a>&emsp;
-                            <a href="{% url 'myapp:postDetail' post.id %}"><i class="fa-solid fa-comment"></i>&ensp;{{ post.count }}&emsp;</a></div>                       
+                        <div class="postBody">
+                            {% for category in post.categories.all %}
+                                <span class="badge bg-secondary">{{ category.cat }}</span>
+                            {% endfor %}
+                        </div>
+
+                        <div class="postTime">{{ post.published }}
+                            <div class="postVis">Visibility: {{ post.visibility }}</div>
+                        </div>
+
+
+                        <div class="postActions">
+                            
+                            <a href="{% url 'myapp:sharePost' post.uuid %}"><i class="fa-solid fa-share"></i>&ensp;Share</a>&emsp;
+                            <a href="{% url 'myapp:liked' post.uuid %}"><i class="fa-solid fa-heart"></i>&ensp;Likes</a>&emsp;
+                            <a href="{% url 'myapp:postDetail' post.uuid %}"><i class="fa-solid fa-comment"></i>&ensp;{{ post.count }}&emsp;</a></div>                       
                     </div>
                     <form method="POST">
                         {% csrf_token %}
@@ -41,13 +64,21 @@
                             {{ form.comment }}
                         </div>
                         <div class="postDetail">
+                            <!-- <label for="title">Title:</label> -->
+                            {{ form.contentType }}
+                        </div>
+                        <div class="postDetail">
                             <button class="btnShare">Share</button>
                         </div>
                     </form>
                     {% for comment in comments %}
                     <div class="singlePost position-relative"> 
-                        <div class="postBody">{{ comment.author.id }}</div>
-                        <div class="postBody">{{ comment.comment }}</div>
+                        <div class="postBody">{{ comment.author.username }}</div>
+                        {% if post.contentType == "text/markdown" %}
+                            <div class="postBody">{{ comment.comment | markdownify}}</div>
+                        {% else %}
+                            <div class="postBody">{{ comment.comment }}</div>
+                        {% endif %}
                         <div class="postTime">{{ comment.published }}</div>                       
                     </div>                   
                     {% endfor %}

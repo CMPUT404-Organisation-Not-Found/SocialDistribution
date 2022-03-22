@@ -30,11 +30,15 @@
                             </div>
                             <div class="postDetail">
                                 <!-- <label for="description">Description:</label> -->
+                                {{ form.content }}
+                            </div>
+                            <div class="postDetail">
+                                <label for="contentType">Content Type:</label>
                                 {{ form.contentType }}
                             </div>
                             <div class="postDetail">
                                 <!-- <label for="description">Description:</label> -->
-                                {{ form.categories }}
+                                {{ form.unparsedCategories }}
                             </div>                           
                             <div class="postDetail">
                                 <!-- <label for="visibility">Visibility:</label> -->

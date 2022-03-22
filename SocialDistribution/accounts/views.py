@@ -23,12 +23,14 @@ def signup(request):
                 profile_image_string = 'https://www.ibm.com/support/pages/system/files/support/swg/rattech.nsf/0/a857b0395de747c085257bcf0037ccb6/Symptom/0.126.gif'
 
             github = author_form.cleaned_data['github']
-            author = Author(id=user.username,
+            author = Author(username=user.username,
                             host=request.get_host(),
                             displayName=user.username,
                             profileImage=profile_image_string,
                             github=github)
 
+            author.save()
+            author.id = request.get_host()+"/authors/"+str(author.uuid)
             author.save()
             inbox = Inbox(author=author)
             inbox.save()

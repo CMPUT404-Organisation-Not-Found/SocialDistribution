@@ -43,15 +43,20 @@ urlpatterns = [
     #
     #   API
     #
-    path('service/authors/', views.AuthorsAPIView.as_view(), name='service-authors'),
-    path('service/authors/<str:id>/', views.AuthorAPIView.as_view(), name='service-author'),
-    path('service/authors/<str:author>/followers/', views.FollowersAPIView.as_view(), name='service-followers'),
-    path('service/authors/<str:author>/followers/<str:another_author>/', views.FollowerAPIView.as_view(), name='service-follower'),
+    path('service/authors', views.AuthorsAPIView.as_view(), name='service-authors'),
+    path('service/authors/<str:uuid>', views.AuthorAPIView.as_view(), name='service-author'),
+    path('service/authors/<str:author>/followers', views.FollowersAPIView.as_view(), name='service-followers'),
+    path('service/authors/<str:author>/followers/<str:another_author>', views.FollowerAPIView.as_view(), name='service-follower'),
     # TODO write the FollowRequest
-    path('service/authors/<str:author>/posts/<slug:pk>/', views.PostAPIView.as_view(), name='service-post'),
-    path('service/authors/<str:author>/posts/', views.PostsAPIView.as_view(), name='service-posts'),
-    # TODO write comments wthen author is linked
-    # path('service/authors/<str:author>/posts/<slug:post>/comments/', views.CommentsAPIView.as_view(), name='service-comments')
+    path('service/authors/<str:author>/posts/<slug:pk>', views.PostAPIView.as_view(), name='service-post'),
+    path('service/authors/<str:author>/posts', views.PostsAPIView.as_view(), name='service-posts'),
+    path('service/authors/<str:author>/posts/<slug:pk>/image', views.ImagePostAPIView.as_view(), name='service-image_post'),
+    path('service/authors/<str:author>/posts/<slug:post>/comments', views.CommentsAPIView.as_view(), name='service-comments'),
+    # TODO like api - 1
+    path('service/authors/<str:author>/posts/<slug:post>/likes', views.LikesAPIView.as_view(), name='service-likes'),
+    # TODO like api - 3
+    path('service/authors/<str:author>/liked', views.LikedAPIView.as_view(), name='service-liked'),
+    path('service/authors/<str:author>/inbox', views.InboxAPIView.as_view(), name='service-Inbox'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
