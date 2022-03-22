@@ -168,6 +168,10 @@
                             {{author_info_form.github}}
                         </div>
                         <div class="form-group">
+                            <label class="text-font" for="password2">Enter Image Url</label>
+                            {{author_info_form.profileImage}}
+                        </div>
+                        <div class="form-group">
                             <label class="text-font" for="password1">Password</label>
                             {{form.password1}}
                         </div>
@@ -175,12 +179,9 @@
                             <label class="text-font" for="password2">Retype Password</label>
                             {{form.password2}}
                         </div>
-                        <div class="form-group">
-                            <label class="text-font" for="password2">Enter Image Url</label>
-                            {{author_info_form.profileImage}}
-                        </div>
                         <div class="" style="padding-bottom: 2em;">
                             {{form.errors}}
+                            {{author_info_form.errors}}
                         </div>
                         <div class="row justify-content-center">
                             <input type="submit" class="submit btn submit-button text-center" value="Create Account">
@@ -189,7 +190,7 @@
                 </div>
             </div>
             <!--  -->
-            <div class="row">
+            <div class="row pt-4">
                 <div class="col-12">
                     <div class="redirect text-center">
                         <span>

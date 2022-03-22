@@ -18,8 +18,8 @@ class Author(models.Model):
     #                       primary_key=True)
     host = models.CharField(max_length=200)
     displayName = models.CharField(max_length=200, null=True)
-    github = models.CharField(max_length=200, null=True)
-    profileImage = models.CharField(max_length=500, null=True, blank=True)
+    github = models.CharField(max_length=200)
+    profileImage = models.CharField(max_length=500)
 
 
 class Authors(models.Model):
