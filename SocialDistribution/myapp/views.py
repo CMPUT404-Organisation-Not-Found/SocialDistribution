@@ -48,7 +48,7 @@ import base64
 nodeArray = ['https://c404-social-distribution.herokuapp.com/service/']
 # nodeArray = ['http://127.0.0.1:7070/service/']
 # nodeArray = ['https://social-dist-wed.herokuapp.com/service/']
-localHostList = ['http://127.0.0.1:7080/', 'http://127.0.0.1:8000/', 'http://localhost:8000', 'https://c404-social-distribution.herokuapp.com/']
+localHostList = ['http://127.0.0.1:7080/', 'http://127.0.0.1:8000/', 'http://localhost:8000', 'https://cmput4042ndnetwork.herokuapp.com/']
 
 # Create your views here.
 @method_decorator(login_required, name='dispatch')
@@ -425,7 +425,7 @@ def profile(request, user_id):
 
     # use API calls to get posts
     modifiedNodeArray = nodeArray.copy() # adding our local to node array
-    modifiedNodeArray.append(localURL)
+    # modifiedNodeArray.append(localURL)
     for node in modifiedNodeArray:
         response = requests.get(f"{node}authors/{current_author_original_uuid}/posts/", params=request.GET, auth=HTTPBasicAuth('admin', 'admin'))
         if response.status_code == 200:
@@ -621,7 +621,7 @@ class AuthorsAPIView(ListAPIView):
     http_method_names = ['get']
 
     def list(self, request, *args, **kwargs):
-        serializer = serializers.AuthorSerializer(Author.objects.all(), many=True)
+        serializer = serializers.AuthorSerializer(Author.objects.filter(host="https://"+request.get_host()), many=True)
         return Response({"type": "authors", "items": serializer.data})
 
 
