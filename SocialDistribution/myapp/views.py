@@ -475,7 +475,7 @@ def follow(request):
             delete_follower.delete()
             raise Exception('Friend request canceled') 
         else:    
-            localHostList = ['http://127.0.0.1:8000/', 'http://localhost:8000', 'https://c404-social-distribution.herokuapp.com/']
+            localHostList = ['http://127.0.0.1:8000/', 'http://localhost:8000', 'https://cmput4042ndnetwork.herokuapp.com/']
             if object.host in localHostList:
                 print("following local users...",object.username)
                 friendRequest = FriendFollowRequest.objects.create(actor=actor, object=object, 
