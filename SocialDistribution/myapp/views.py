@@ -125,7 +125,6 @@ class NewPostView(View):
                 newPost.categories.add(newCat)
                 newPost.save()
 
-
             if newPost.type == 'post':
                 newPost.source = request.get_host()+ "/post/" + str(newPost.uuid)
                 newPost.origin = request.get_host()+ "/post/" + str(newPost.uuid)
@@ -184,7 +183,6 @@ class NewPostView(View):
                         # return Response(serializer.data)
             except AttributeError as e:
                 print(e, 'No followers for this author')
-
 
         # posts = Post.objects.all()
         # context = {
@@ -391,7 +389,7 @@ class ShareDetailView(View):
             'likes': likes,
             'likes_count': likes_count,
             # 'source_post': source_post,
-            'original_post': original_post,
+            # 'original_post': original_post,
 
         }
 
@@ -426,10 +424,10 @@ def profile(request, user_id):
     current_author_original_uuid = current_author_info.id.split('/')[-1]
 
     # use API calls to get posts
-    modifiedNodeArray = nodeArray # adding our local to node array
-    # modifiedNodeArray.append(localURL)
+    modifiedNodeArray = nodeArray.copy() # adding our local to node array
+    modifiedNodeArray.append(localURL)
     for node in modifiedNodeArray:
-        response = requests.get(f"{node}authors/{current_author_original_uuid}/posts/", auth=HTTPBasicAuth('admin', 'admin'), params=request.GET)
+        response = requests.get(f"{node}authors/{current_author_original_uuid}/posts/", params=request.GET, auth=HTTPBasicAuth('admin', 'admin'))
         if response.status_code == 200:
             response_contents = response.json()['items']
             posts = response_contents
@@ -498,7 +496,7 @@ def follow(request):
 
                 ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
                 # req = requests.Request('POST',f"{object.host}service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
-                req = requests.Request('POST',f"http://{object.host}/service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('admin', 'admin'), headers={'Content-Type': 'application/json'})
+                req = requests.Request('POST',f"{object.host}/service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('admin','admin'), headers={'Content-Type': 'application/json'})
                 prepared = req.prepare()
 
                 s = requests.Session()
@@ -942,12 +940,7 @@ class InboxAPIView(CreateModelMixin, RetrieveDestroyAPIView):
             new_post.origin = request.get_host() + "/post/" + str(new_post.uuid)
             new_post.comments = request.get_host() + "/post/" + str(new_post.uuid)
             new_post.save()
-
-            Inbox.objects.filter(author__username=author.username)[0].items.add(new_post)
-            followersID = FollowerCount.objects.filter(user=author.username)
-
-            for followerID in followersID:
-                Inbox.objects.filter(author__username=followerID.follower)[0].items.add(new_post)
+            Inbox.objects.filter(author__username=current_user.username)[0].items.add(new_post)
 
             serializer = serializers.PostSerializer(new_post)
             return Response(serializer.data)
