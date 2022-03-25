@@ -45,7 +45,7 @@ from requests.auth import HTTPBasicAuth
 import re
 import base64
 
-nodeArray = ['https://cmput404-w22-project-backend.herokuapp.com/service/', 'https://cmput4042ndnetwork.herokuapp.com/service/']
+nodeArray = ['https://c404-social-distribution.herokuapp.com/service/']
 # nodeArray = ['https://social-dist-wed.herokuapp.com/service/']
 
 # Create your views here.
@@ -143,7 +143,7 @@ class NewPostView(View):
                 for follower in followersID:
                     # follower is <author> object
                     #TODO: Remove the localhost urls once in HEROKU
-                    localHostList = ['http://127.0.0.1:8000/', 'http://localhost:8000', 'https://c404-social-distribution.herokuapp.com/']
+                    localHostList = ['http://127.0.0.1:8000/', 'http://localhost:8000', 'https://cmput4042ndnetwork.herokuapp.com/']
                     if follower.host in localHostList:
                         # print(f'pushing to local author {follower.username}')
                         Inbox.objects.filter(author__username=follower.username).first().items.add(newPost)
@@ -155,7 +155,7 @@ class NewPostView(View):
                         # print(json.dumps(serializer.data))
                         
                         ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
-                        req = requests.Request('POST',f"{follower.host}service/authors/{follower.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
+                        req = requests.Request('POST', f"{follower.host}service/authors/{follower.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('admin', 'admin'), headers={'Content-Type': 'application/json'})
                         prepared = req.prepare()
 
                         s = requests.Session()
@@ -493,7 +493,7 @@ def follow(request):
             
                 ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
                 # req = requests.Request('POST',f"{object.host}service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
-                req = requests.Request('POST',f"http://{object.host}/service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
+                req = requests.Request('POST',f"http://{object.host}/service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('admin', 'admin'), headers={'Content-Type': 'application/json'})
                 prepared = req.prepare()
 
                 s = requests.Session()
