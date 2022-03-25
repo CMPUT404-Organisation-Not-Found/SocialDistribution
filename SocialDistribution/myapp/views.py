@@ -66,7 +66,8 @@ class PostListView(View):
 
         for node in nodeArray:
             # make get request to other notes /service/authors/
-            response = requests.get(f"{node}authors/", params=request.GET)
+            response = requests.get(f"{node}authors/", auth=HTTPBasicAuth('admin', 'admin'), params=request.GET)
+            breakpoint()
             if response.status_code == 200:
                 response_contents = response.json()['items']
                 for author in response_contents:
@@ -424,7 +425,7 @@ def profile(request, user_id):
     modifiedNodeArray = nodeArray # adding our local to node array
     # modifiedNodeArray.append(localURL)
     for node in modifiedNodeArray:
-        response = requests.get(f"{node}authors/{current_author_original_uuid}/posts/", params=request.GET)
+        response = requests.get(f"{node}authors/{current_author_original_uuid}/posts/", auth=HTTPBasicAuth('admin', 'admin'), params=request.GET)
         if response.status_code == 200:
             response_contents = response.json()['items']
             posts = response_contents
