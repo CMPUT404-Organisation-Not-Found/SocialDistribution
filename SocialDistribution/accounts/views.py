@@ -24,7 +24,7 @@ def signup(request):
 
             github = author_form.cleaned_data['github']
             author = Author(username=user.username,
-                            host="https://"+request.get_host(),
+                            host=f"https://{request.get_host()}/",
                             displayName=user.username,
                             profileImage=profile_image_string,
                             github=github)
