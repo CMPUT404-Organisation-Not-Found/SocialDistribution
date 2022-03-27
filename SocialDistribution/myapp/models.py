@@ -165,11 +165,46 @@ class Liked(models.Model):
 class Inbox(models.Model):
     type = models.CharField(default='inbox', max_length=200)
     author = models.ForeignKey(to=Author, on_delete=models.CASCADE)
-    items = models.ManyToManyField(to=Post)
-    # content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True)
-    # object_id = models.CharField(max_length=250, null=True)
-    # content_object = GenericForeignKey('content_type', 'object_id')
 
+    # for reverse lookup of inbox items
+    # https://stackoverflow.com/questions/15306897/django-reverse-lookup-of-foreign-keys
+
+    def __str__(self) -> str:
+        return f"{self.author.username}'s inbox"
+
+    def to_dict(self):
+        return {
+            'type': self.type,
+            'author': self.author.username,
+            # 'items_object': self.items_object.to_dict()
+        }
+
+
+class InboxItem(models.Model):
+    inbox = models.ForeignKey(to=Inbox, on_delete=models.CASCADE)
+    # model field in choices {like, post, comment, friendfollowrequest}
+    choices = [("like", "like"), ("post", "post"), ("comment", "comment"),
+               ("friendfollowrequest", "friendfollowrequest")]
+    inbox_item_type = models.CharField(max_length=20, choices=choices)
+
+    # if inbox item is read
+    is_read = models.BooleanField(default=False)
+
+    # GFK to {like, post, comment, friendfollowrequest}
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    item_id = models.CharField(max_length=255)
+    item = GenericForeignKey('content_type', 'item_id')
+
+    def __str__(self) -> str:
+        return f"{self.inbox.author.username}'s {self.inbox_item_type}: {self.content_type}, {self.item_id}"
+
+    def to_dict(self) -> dict:
+        return {
+            'inbox_item_type': self.inbox_item_type,
+            'content_type': self.content_type,
+            'item_id': self.item_id,
+            'item': self.item.to_dict()
+        }
 
 class ConnectionNode(models.Model):
     """

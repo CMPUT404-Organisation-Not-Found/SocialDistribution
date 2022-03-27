@@ -10,7 +10,7 @@ from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
 from django.views import View
 from rest_framework.decorators import api_view
 
-from .models import Post, Comment, Inbox, Like, Followers
+from .models import InboxItem, Post, Comment, Inbox, Like, Followers
 from .forms import PostForm, CommentForm, ShareForm
 from django.shortcuts import render, get_object_or_404, redirect
 
@@ -70,18 +70,19 @@ localHostList = [
 class PostListView(View):
 
     def get(self, request, *args, **kwargs):
-        # posts = Post.objects.all().order_by('-published')
-        posts = Inbox.objects.filter(
-            author__username=request.user.username)[0].items
+        # getting all posts object from inbox
+        currentUser = request.user
+        currentInbox = Inbox.objects.filter(
+            author__username=currentUser.username).first()
+        posts = currentInbox.inboxitem_set.filter(inbox_item_type="post")
+        responsePosts = []
+        for post in posts:
+            responsePosts.append(post.item)
+        # sort responsePosts by published
+        responsePosts.sort(key=lambda x: x.published, reverse=True)
 
-        # author = Author(username=user.username,
-        #                     host=request.get_host(),
-        #                     displayName=user.username,
-        #                     profileImage=profile_image_string,
-        #                     github=github)
-        # author.save()
-        # author.id = request.get_host()+"/authors/"+str(author.uuid)
-        # author.save()
+        # posts = Inbox.objects.filter(
+        #     author__username=request.user.username)[0].items
 
         for node in nodeArray:
             # make get request to other notes /service/authors/
@@ -109,7 +110,7 @@ class PostListView(View):
 
         author_list = Author.objects.all()
         context = {
-            'postList': posts,
+            'postList': responsePosts,
             'author_list': author_list,
             # 'form': form,
         }
@@ -131,18 +132,19 @@ class NewPostView(View):
         return render(request, 'newpost.html', context)
 
     def post(self, request, *args, **kwargs):
-        posts = Post.objects.all()
-        share_form = ShareForm()
         form = PostForm(request.POST, request.FILES)
 
         if form.is_valid():
+            # creating post from form and adding attributes
             newPost = form.save(commit=False)
             newPost.author = Author.objects.get(username=request.user.username)
             newPost.id = request.get_host() + "/authors/" + str(
                 newPost.author.uuid) + "/posts/" + str(newPost.uuid)
-            newPost.save()
+
+            # adding categories to post
             unparsedCat = newPost.unparsedCategories
             catList = unparsedCat.split()
+            newPost.save()
             for cat in catList:
                 newCat = Category()
                 newCat.cat = cat
@@ -150,14 +152,17 @@ class NewPostView(View):
                 newPost.categories.add(newCat)
                 newPost.save()
 
+            # not sure what its for but it works
             if newPost.type == 'post':
                 newPost.source = request.get_host() + "/post/" + str(
                     newPost.uuid)
                 newPost.origin = request.get_host() + "/post/" + str(
                     newPost.uuid)
                 newPost.comments = request.get_host() + "/post/" + str(
-                    newPost.uuid)
+                    newPost.uuid) + '/comments'
                 newPost.save()
+
+            # if its an image
             if newPost.post_image:
                 # print("------url", newPost.post_image.path)
                 # print(str(newPost.post_image))
@@ -166,29 +171,37 @@ class NewPostView(View):
                 # print(newPost.image_b64[:20])
                 newPost.save()
 
+            # adding post to inbox of current author
+            # add post to InboxItem which links to Inbox
+            InboxItem.objects.create(
+                inbox=Inbox.objects.filter(
+                    author__username=request.user.username).first(),
+                inbox_item_type="post",
+                item=newPost,
+            )
+            # Inbox.objects.filter(author__username=request.user.username).first(
+            # ).items.add(newPost)
 
-# to modify
-
-            Inbox.objects.filter(author__username=request.user.username).first(
-            ).items.add(newPost)
             user = Author.objects.get(username=request.user.username)
             try:
                 followersID = Followers.objects.filter(
                     user__username=user.username).first().items.all()
                 for follower in followersID:
                     # follower is <author> object
-                    #TODO: Remove the localhost urls once in HEROKU
-                    # localHostList = ['http://127.0.0.1:8000/', 'http://localhost:8000', 'https://cmput4042ndnetwork.herokuapp.com/']
+                    # breakpoint()
                     if follower.host in localHostList:
-                        # print(f'pushing to local author {follower.username}')
-                        Inbox.objects.filter(author__username=follower.username
-                                             ).first().items.add(newPost)
+                        # add it to inbox of follower
+                        # Inbox.objects.filter(author__username=follower.username
+                        #                      ).first().items.add(newPost)
+                        InboxItem.objects.create(
+                            inbox=Inbox.objects.filter(
+                                author__username=follower.username).first(),
+                            inbox_item_type="post",
+                            item=newPost,
+                        )
                     else:
-                        # print(f'pushing to remote author {follower.username}')
                         # if author is not local make post request to add to other user inbox
                         serializer = serializers.PostSerializer(newPost)
-                        # print(f"{follower.host}service/authors/{follower.username}/inbox")
-                        # print(json.dumps(serializer.data))
 
                         ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
                         authDictKey = follower.host + "/service/"
@@ -206,30 +219,9 @@ class NewPostView(View):
 
                         print("status code, ", resp.status_code)
 
-                        # if response.status_code == 200:
-                        #     print('Post successfully sent to remote follower')
-                        # else:
-                        #     print(f'Post FAILED to send to remote {follower.host}')
-                        #     print(response)
-
-                        # how the api does it
-                        # Inbox.objects.filter(author__username=author.username)[0].items.add(new_post)
-                        # followersID = FollowerCount.objects.filter(user=author.username)
-
-                        # for followerID in followersID:
-                        #     Inbox.objects.filter(author__username=followerID.follower)[0].items.add(new_post)
-                        # serializer = serializers.PostSerializer(new_post)
-                        # return Response(serializer.data)
             except AttributeError as e:
                 print(e, 'No followers for this author')
 
-        # posts = Post.objects.all()
-        # context = {
-        #     # 'postList': posts,
-        #     'form': form,
-        #     'new_post': newPost
-        # }
-        # return render(request,'myapp/newpost.html', context)
         return redirect('myapp:postList')
 
 
@@ -305,6 +297,9 @@ class PostDetailView(View):
 
 @method_decorator(login_required, name='dispatch')
 class SharedPostView(View):
+    """
+        View for sharing posted posts (or something like that)
+    """
 
     def get(self, request, pk, *args, **kwargs):
         post = Post.objects.get(uuid=pk)
@@ -319,7 +314,9 @@ class SharedPostView(View):
         return render(request, 'share.html', context)
 
     def post(self, request, pk, *args, **kwargs):
+        # source_post is the currently selected post to be shared
         source_post = Post.objects.get(pk=pk)
+        # TODO: SU: please confirm that this is accepted behaviour.
         if source_post.type == 'post':
             source_text = request.get_host() + '/post/'
         else:
@@ -330,7 +327,8 @@ class SharedPostView(View):
 
         if form.is_valid():
             new_post = Post(
-                type='share',
+                type=
+                'share',  #TODO: Su: please confirm that type is allowed to be updated
                 title=self.request.POST.get('title'),
                 source=source_text + str(pk),
                 origin=original_post.origin,
@@ -340,18 +338,35 @@ class SharedPostView(View):
                 author=Author.objects.get(username=request.user.username),
                 visibility=original_post.visibility,
             )
-        new_post.save()
-        new_post.author = Author.objects.get(username=request.user.username)
-        new_post.id = request.get_host() + "/authors/" + str(
-            new_post.author.uuid) + "/posts/" + str(new_post.uuid)
-        new_post.save()
-        # to modify
-        Inbox.objects.filter(
-            author__username=request.user.username)[0].items.add(new_post)
-        followers = Followers.objects.get(user=object).items
-        # followersID = FollowerCount.objects.filter(user=request.user.username)
-        # for followerID in followersID:
-        #     Inbox.objects.filter(author__username=followerID.follower)[0].items.add(new_post)
+            new_post.save()
+            new_post.id = request.get_host() + "/authors/" + str(
+                new_post.author.uuid) + "/posts/" + str(new_post.uuid)
+            new_post.save()
+
+        # adding post to request.user's inbox
+        InboxItem.objects.create(
+            inbox=Inbox.objects.filter(
+                author__username=request.user.username).first(),
+            inbox_item_type='post',
+            item=new_post,
+        )
+
+        try:
+            #TODO: this is a hack, please fix
+            followers = Followers.objects.get(
+                user__username=request.user.username).items.all()
+            # followersID = FollowerCount.objects.filter(user=request.user.username)
+            for follower in followers:
+                # follower is <author> object
+                InboxItem.objects.create(
+                    inbox=Inbox.objects.filter(
+                        author__username=follower.username).first(),
+                    inbox_item_type='post',
+                    item=new_post,
+                )
+        except Exception as e:
+            print(e, 'No followers for this author')
+
         context = {
             'new_post': new_post,
             # 'source_post': source_post,

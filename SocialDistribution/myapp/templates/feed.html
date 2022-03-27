@@ -35,7 +35,8 @@
                                                     </div> -->
                 <!-- Reference: https://stackoverflow.com/questions/6540032/sorting-related-items-in-a-django-template -->
                 <!-- https://docs.djangoproject.com/en/dev/ref/templates/builtins/#std:templatefilter-dictsort -->
-                {% for post in postList.all|dictsortreversed:"published"%}
+                {% comment %} {% for post in postList.all|dictsortreversed:"published"%} {% endcomment %}
+                {% for post in postList %}
                     <div class="singlePost position-relative">
                         {% if post.type == 'share'%}
                             <!-- <div class="postActions" style="text-align: left; color: black;"> <span style="font-weight: bold; color: #F28482; font-size: 18px;">{{post.author.username}}</span> shared post from <a a style="color: rgb(135, 172, 228); font-style: italic; font-size: 15px;" href="{{post.source}}">{{post.source}}</a></div> -->
