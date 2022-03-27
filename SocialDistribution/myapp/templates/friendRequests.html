@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Feed{% endblock %}
+
+{% block content %}
+
+    {% if user.is_authenticated %}
+
+    {% load static %}
+
+    {% load markdownify %}
+
+    <link rel="stylesheet" type="text/css" href="{% static 'css/feed.css' %}">
+
+    <div class="colContainer">
+
+        {% include "sidebarLeft.html" %}
+
+        <div class="middle">
+            <div id="postHolder">
+                {% for friendRequest in friendRequests%}
+                    <div class="singlePost position-relative">
+                            <!-- <div class="postActions" style="text-align: left; color: black;"> <span style="font-weight: bold; color: #F28482; font-size: 18px;">{{post.author.username}}</span> shared post from <a a style="color: rgb(135, 172, 228); font-style: italic; font-size: 15px;" href="{{post.source}}">{{post.source}}</a></div> -->
+                            <div class="postBody" style="font-weight: bold; color: #F28482; font-size: 18px;">{{friendRequest.summary}}</div>
+                            <form action="{% url 'myapp:acceptFriendRequest' friendRequest.actor.username %}">
+                                <button type="submit" id="follow_request_button">Accept</button>
+                            </form>
+                            <!-- pip install django-markdownify -->
+            
+                        <!-- <div>UUID: {{ post.id }}</div> -->
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% include "sidebarRight.html" %}
+    </div>
+
+    {% else %}
+    <p>You are not logged in</p>
+    <a href="{% url 'login' %}">Log In</a>
+    {% endif %}
+{% endblock %}

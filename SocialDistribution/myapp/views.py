@@ -2,7 +2,7 @@ import json
 from http.client import HTTPResponse
 from urllib import request
 from itertools import chain
-
+import requests
 from multiprocessing import context
 
 from django.core import paginator
@@ -10,11 +10,11 @@ from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
 from django.views import View
 from rest_framework.decorators import api_view
 
-from .models import Post, Comment, Inbox, Like
+from .models import InboxItem, Post, Comment, Inbox, Like, Followers
 from .forms import PostForm, CommentForm, ShareForm
 from django.shortcuts import render, get_object_or_404, redirect
 
-from .models import Author, Post, FollowerCount
+from .models import Author, Post, FriendFollowRequest
 from django.views import View
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, auth
@@ -40,27 +40,83 @@ from rest_framework.generics import ListCreateAPIView, ListAPIView, RetrieveUpda
 from rest_framework import status
 from rest_framework.mixins import CreateModelMixin
 from rest_framework.renderers import JSONRenderer
+from requests.auth import HTTPBasicAuth
 
 import re
 import base64
+
+nodeArray = [
+    'https://cmput404-w22-project-backend.herokuapp.com/service/',
+    'https://cmput4042ndnetwork.herokuapp.com/service/',
+    'https://social-dist-wed.herokuapp.com/service/'
+]
+authDict = {
+    'https://cmput404-w22-project-backend.herokuapp.com/service/':
+    ['proxy', 'proxy123!'],
+    'https://cmput4042ndnetwork.herokuapp.com/service/': ['admin', 'admin'],
+    'https://social-dist-wed.herokuapp.com/service/': ['team02admin', 'admin']
+}
+
+# nodeArray = ['https://social-dist-wed.herokuapp.com/service/']
+# nodeArray = ['http://127.0.0.1:7080/service/']
+localHostList = [
+    'http://127.0.0.1:7070/', 'http://127.0.0.1:8000/',
+    'http://localhost:8000', 'https://c404-social-distribution.herokuapp.com/'
+]
 
 
 # Create your views here.
 @method_decorator(login_required, name='dispatch')
 class PostListView(View):
+
     def get(self, request, *args, **kwargs):
-        # posts = Post.objects.all().order_by('-published')
-        posts = Inbox.objects.filter(author__username=request.user.username)[0].items
+        # getting all posts object from inbox
+        currentUser = request.user
+        currentInbox = Inbox.objects.filter(
+            author__username=currentUser.username).first()
+        posts = currentInbox.inboxitem_set.filter(inbox_item_type="post")
+        responsePosts = []
+        for post in posts:
+            responsePosts.append(post.item)
+        # sort responsePosts by published
+        responsePosts.sort(key=lambda x: x.published, reverse=True)
+
+        for node in nodeArray:
+            # make get request to other notes /service/authors/
+            response = requests.get(f"{node}authors/",
+                                    params=request.GET,
+                                    auth=HTTPBasicAuth(authDict[node][0],
+                                                       authDict[node][1]))
+            if response.status_code == 200:
+                response_contents = response.json()['items']
+                for author in response_contents:
+                    if Author.objects.filter(id=author['id']).exists():
+                        continue
+                    remote_author = Author(
+                        id=author['id'],
+                        username=author['id'].split("/")
+                        [-1],  # username = remote_author.uuid
+                        displayName=author['displayName'],
+                        host=author['host'],
+                        github=author['github'],
+                        profileImage=author['profileImage'])
+                    remote_author.save()
+            else:
+                print("FAILURE")
+            print(response)
+
         author_list = Author.objects.all()
         context = {
-            'postList': posts,
-            'author_list':author_list,
+            'postList': responsePosts,
+            'author_list': author_list,
             # 'form': form,
         }
-        return render(request,'feed.html', context)
+        return render(request, 'feed.html', context)
+
 
 @method_decorator(login_required, name='dispatch')
 class NewPostView(View):
+
     def get(self, request, *args, **kwargs):
         form = PostForm()
         share_form = ShareForm()
@@ -68,22 +124,24 @@ class NewPostView(View):
         context = {
             'form': form,
             'share_form': share_form,
-            'author_list':author_list,
+            'author_list': author_list,
         }
-        return render(request,'newpost.html', context)
+        return render(request, 'newpost.html', context)
 
     def post(self, request, *args, **kwargs):
-        posts = Post.objects.all()
-        share_form = ShareForm()
         form = PostForm(request.POST, request.FILES)
 
         if form.is_valid():
+            # creating post from form and adding attributes
             newPost = form.save(commit=False)
             newPost.author = Author.objects.get(username=request.user.username)
-            newPost.id = request.get_host()+ "/authors/" + str(newPost.author.uuid) + "/posts/" + str(newPost.uuid)
-            newPost.save()
+            newPost.id = request.get_host() + "/authors/" + str(
+                newPost.author.uuid) + "/posts/" + str(newPost.uuid)
+
+            # adding categories to post
             unparsedCat = newPost.unparsedCategories
             catList = unparsedCat.split()
+            newPost.save()
             for cat in catList:
                 newCat = Category()
                 newCat.cat = cat
@@ -91,12 +149,17 @@ class NewPostView(View):
                 newPost.categories.add(newCat)
                 newPost.save()
 
-
+            # not sure what its for but it works
             if newPost.type == 'post':
-                newPost.source = request.get_host()+ "/post/" + str(newPost.uuid)
-                newPost.origin = request.get_host()+ "/post/" + str(newPost.uuid)
-                newPost.comments = request.get_host()+ "/post/" + str(newPost.uuid)
+                newPost.source = request.get_host() + "/post/" + str(
+                    newPost.uuid)
+                newPost.origin = request.get_host() + "/post/" + str(
+                    newPost.uuid)
+                newPost.comments = request.get_host() + "/post/" + str(
+                    newPost.uuid) + '/comments'
                 newPost.save()
+
+            # if its an image
             if newPost.post_image:
                 # print("------url", newPost.post_image.path)
                 # print(str(newPost.post_image))
@@ -105,21 +168,58 @@ class NewPostView(View):
                 # print(newPost.image_b64[:20])
                 newPost.save()
 
-            Inbox.objects.filter(author__username=request.user.username)[0].items.add(newPost)
-            followersID = FollowerCount.objects.filter(user=request.user.username)
-            for followerID in followersID:
-                Inbox.objects.filter(author__username=followerID.follower)[0].items.add(newPost)
+            # adding post to inbox of current author
+            # add post to InboxItem which links to Inbox
+            InboxItem.objects.create(
+                inbox=Inbox.objects.filter(
+                    author__username=request.user.username).first(),
+                inbox_item_type="post",
+                item=newPost,
+            )
 
-        # posts = Post.objects.all()
-        # context = {
-        #     'postList': posts,
-        #     # 'form': form,
-        # }
-        # return render(request,'myapp/newpost.html', context)
+            user = Author.objects.get(username=request.user.username)
+            try:
+                followersID = Followers.objects.filter(
+                    user__username=user.username).first().items.all()
+                for follower in followersID:
+                    # follower is <author> object
+                    # breakpoint()
+                    if follower.host in localHostList:
+                        InboxItem.objects.create(
+                            inbox=Inbox.objects.filter(
+                                author__username=follower.username).first(),
+                            inbox_item_type="post",
+                            item=newPost,
+                        )
+                    else:
+                        # if author is not local make post request to add to other user inbox
+                        serializer = serializers.PostSerializer(newPost)
+
+                        ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
+                        authDictKey = follower.host + "/service/"
+                        req = requests.Request(
+                            'POST',
+                            f"{follower.host}/service/authors/{follower.username}/inbox",
+                            data=json.dumps(serializer.data),
+                            auth=HTTPBasicAuth(authDict[authDictKey][0],
+                                               authDict[authDictKey][1]),
+                            headers={'Content-Type': 'application/json'})
+                        prepared = req.prepare()
+
+                        s = requests.Session()
+                        resp = s.send(prepared)
+
+                        print("status code, ", resp.status_code)
+
+            except AttributeError as e:
+                print(e, 'No followers for this author')
+
         return redirect('myapp:postList')
+
 
 @method_decorator(login_required, name='dispatch')
 class PostDetailView(View):
+
     def get(self, request, pk, *args, **kwargs):
         post = Post.objects.get(uuid=pk)
         form = CommentForm()
@@ -133,10 +233,10 @@ class PostDetailView(View):
         context = {
             'post': post,
             'form': form,
-            'comments':comments,
+            'comments': comments,
             'likes': likes,
-            'author_list':author_list,
-            'image_b64':image_b64,
+            'author_list': author_list,
+            'image_b64': image_b64,
         }
 
         return render(request, 'postDetail.html', context)
@@ -147,11 +247,38 @@ class PostDetailView(View):
         author_list = Author.objects.all()
         if form.is_valid():
             newComment = form.save(commit=False)
-            newComment.author = Author.objects.get(username=request.user.username)
+            newComment.author = Author.objects.get(
+                username=request.user.username)
             newComment.post = post
             newComment.save()
-            newComment.id = request.get_host()+ "/authors/" + str(post.author.uuid) + "/posts/" + str(pk) + "/comments/" + str(newComment.uuid)
+            newComment.id = request.get_host() + "/authors/" + str(
+                post.author.uuid) + "/posts/" + str(pk) + "/comments/" + str(
+                    newComment.uuid)
             newComment.save()
+
+            # after creating comment, send it to inbox of post author
+            # as well as comment author, but post author may be remote
+            # creating for the comment author
+            InboxItem.objects.create(
+                inbox=Inbox.objects.filter(
+                    author__username=request.user.username).first(),
+                inbox_item_type="comment",
+                item=newComment,
+            )
+            # if post author is local
+            if post.author.host in localHostList:
+                InboxItem.objects.create(
+                    inbox=Inbox.objects.filter(
+                        author__username=post.author.username).first(),
+                    inbox_item_type="comment",
+                    item=newComment,
+                )
+            # else if post author is remote
+            else:
+                # if author is not local make post request to add to other user inbox
+                serializer = serializers.CommentsSerializer(newComment)
+                
+
             post.count += 1
             post.save()
             # reset form
@@ -169,7 +296,7 @@ class PostDetailView(View):
                 'likes_count': likes_count,
                 'comments': comments,
                 'author_list': author_list,
-                'image_b64':image_b64,
+                'image_b64': image_b64,
             }
         else:
             context = {
@@ -183,8 +310,13 @@ class PostDetailView(View):
 
         return render(request, 'postDetail.html', context)
 
+
 @method_decorator(login_required, name='dispatch')
 class SharedPostView(View):
+    """
+        View for sharing posted posts (or something like that)
+    """
+
     def get(self, request, pk, *args, **kwargs):
         post = Post.objects.get(uuid=pk)
         share_form = ShareForm()
@@ -198,35 +330,59 @@ class SharedPostView(View):
         return render(request, 'share.html', context)
 
     def post(self, request, pk, *args, **kwargs):
+        # source_post is the currently selected post to be shared
         source_post = Post.objects.get(pk=pk)
+        # TODO: SU: please confirm that this is accepted behaviour.
         if source_post.type == 'post':
-            source_text = request.get_host()+'/post/'
+            source_text = request.get_host() + '/post/'
         else:
-            source_text = request.get_host()+'/post/shared/'
+            source_text = request.get_host() + '/post/shared/'
         original_post_id = source_post.origin.split('/')[-1]
         original_post = Post.objects.get(uuid=original_post_id)
         form = ShareForm(request.POST)
-        
+
         if form.is_valid():
             new_post = Post(
-            type = 'share',
-            title = self.request.POST.get('title'),
-            source = source_text + str(pk),
-            origin = original_post.origin,
-            description = Post.objects.get(pk=pk).description,
-            content = Post.objects.get(pk=pk).content,
-            contentType = 'text',
-            author = Author.objects.get(username=request.user.username),
-            visibility = original_post.visibility, 
+                type=
+                'share',  #TODO: Su: please confirm that type is allowed to be updated
+                title=self.request.POST.get('title'),
+                source=source_text + str(pk),
+                origin=original_post.origin,
+                description=Post.objects.get(pk=pk).description,
+                content=Post.objects.get(pk=pk).content,
+                contentType='text',
+                author=Author.objects.get(username=request.user.username),
+                visibility=original_post.visibility,
             )
-        new_post.save()
-        new_post.author = Author.objects.get(username=request.user.username)
-        new_post.id = request.get_host()+ "/authors/" + str(new_post.author.uuid) + "/posts/" + str(new_post.uuid)
-        new_post.save()
-        Inbox.objects.filter(author__username=request.user.username)[0].items.add(new_post)
-        followersID = FollowerCount.objects.filter(user=request.user.username)
-        for followerID in followersID:
-            Inbox.objects.filter(author__username=followerID.follower)[0].items.add(new_post)
+            new_post.save()
+            new_post.id = request.get_host() + "/authors/" + str(
+                new_post.author.uuid) + "/posts/" + str(new_post.uuid)
+            new_post.save()
+
+        # adding post to request.user's inbox
+        InboxItem.objects.create(
+            inbox=Inbox.objects.filter(
+                author__username=request.user.username).first(),
+            inbox_item_type='post',
+            item=new_post,
+        )
+
+        try:
+            #TODO: this is a hack, please fix
+            followers = Followers.objects.get(
+                user__username=request.user.username).items.all()
+            # followersID = FollowerCount.objects.filter(user=request.user.username)
+            for follower in followers:
+                # follower is <author> object
+                InboxItem.objects.create(
+                    inbox=Inbox.objects.filter(
+                        author__username=follower.username).first(),
+                    inbox_item_type='post',
+                    item=new_post,
+                )
+        except Exception as e:
+            print(e, 'No followers for this author')
+
         context = {
             'new_post': new_post,
             # 'source_post': source_post,
@@ -235,6 +391,7 @@ class SharedPostView(View):
         }
         return redirect('myapp:postList')
         #return render(request, 'share.html', context)
+
 
 @login_required(login_url='/accounts/login')
 def like(request):
@@ -252,6 +409,7 @@ def like(request):
         post.likes += 1
         post.save()
         # return redirect('myapp:postList')
+        # push like object into inbox
         return HttpResponseRedirect(request.META.get('HTTP_REFERER'))
     else:
         like_filter.delete()
@@ -261,11 +419,13 @@ def like(request):
         # return redirect('myapp:postList')
         return HttpResponseRedirect(request.META.get('HTTP_REFERER'))
 
+
 @method_decorator(login_required, name='dispatch')
 class ShareDetailView(View):
+
     def get(self, request, pk, *args, **kwargs):
         post = Post.objects.get(uuid=pk)
-        
+
         form = CommentForm()
         comments = Comment.objects.filter(post=post).order_by('-published')
         likes = Like.objects.filter(object=post)
@@ -278,22 +438,22 @@ class ShareDetailView(View):
         context = {
             'post': post,
             'form': form,
-            'comments':comments,
+            'comments': comments,
             'likes': likes,
             'source_post': source_post,
             'original_post': original_post,
-
         }
 
         return render(request, 'shareDetail.html', context)
-    
+
     def post(self, request, pk, *args, **kwargs):
         post = Post.objects.get(uuid=pk)
         form = CommentForm(request.POST)
 
         if form.is_valid():
             newComment = form.save(commit=False)
-            newComment.author = Author.objects.get(username=request.user.username)
+            newComment.author = Author.objects.get(
+                username=request.user.username)
             newComment.post = post
             newComment.save()
             post.count += 1
@@ -306,95 +466,214 @@ class ShareDetailView(View):
         context = {
             'post': post,
             'form': form,
-            'comments':comments,
+            'comments': comments,
             'likes': likes,
             'likes_count': likes_count,
             # 'source_post': source_post,
-            'original_post': original_post,
-
+            # 'original_post': original_post,
         }
 
         return render(request, 'shareDetail.html', context)
+
 
 @login_required(login_url='/accounts/login')
 def liked(request, post_id):
     post = Post.objects.get(uuid=post_id)
     username = request.user.username
     likes_list = Like.objects.filter(object=post)
-    context = {
-        'likes_list': likes_list
-    }
+    context = {'likes_list': likes_list}
     return render(request, 'liked.html', context)
-    # if 
+    # if
     # like_text = 'Like'
+
 
 @login_required(login_url='/accounts/login')
 def profile(request, user_id):
     # get basic info
     current_author_info = get_object_or_404(Author, pk=user_id)
-    follower = request.user.username
-    user = user_id
+    actor = Author.objects.filter(username=request.user.username).first()
+    object = Author.objects.filter(username=user_id).first()
     # get github info
     github_username = current_author_info.github.split("/")[-1]
-    # get posts
-    try:
-        posts = Post.objects.filter(author__username=user_id).order_by('-published')
-    except:
-        posts = []
+
+    localURL = f"http://{request.get_host()}/service/"
+    posts = []
+
+    response_contents = None
+    # original UUID from Original server for current_author_info
+    current_author_original_uuid = current_author_info.id.split('/')[-1]
+
+    # use API calls to get posts
+    modifiedNodeArray = nodeArray.copy()  # adding our local to node array
+    # modifiedNodeArray.append(localURL)
+    for node in modifiedNodeArray:
+        response = requests.get(
+            f"{node}authors/{current_author_original_uuid}/posts/",
+            params=request.GET,
+            auth=HTTPBasicAuth(authDict[node][0], authDict[node][1]))
+        if response.status_code == 200:
+            response_contents = response.json()['items']
+            posts = response_contents
+        else:
+            pass
+
+    # add UUID to posts object
+    for post in posts:
+        post['uuid'] = post['id'].split('/')[-1]
     # get follow
-    if FollowerCount.objects.filter(follower=follower, user=user).first():
-        button_text = 'Unfollow'
+    if FriendFollowRequest.objects.filter(
+            actor__username=actor.username,
+            object__username=object.username).first():
+        button_text = 'Friend Request Sent'
     else:
-        button_text = 'Follow'
-    count_followers = len(FollowerCount.objects.filter(user=user_id))
-    count_following = len(FollowerCount.objects.filter(follower=user_id))
+        button_text = 'Send Friend Request'
+    user = Author.objects.get(username=user_id)
+    try:
+        count_followers = len(
+            Followers.objects.filter(user=user)[0].items.all())
+    except:
+        count_followers = 0
     author_list = Author.objects.all()
     context = {
         'current_author_info': current_author_info,
         'button_text': button_text,
         'count_followers': count_followers,
-        'count_following': count_following,
         'github_username': github_username,
         'posts': posts,
         'author_list': author_list,
-        }
-
+    }
+    # breakpoint()
     return render(request, 'profile.html', context)
+
 
 @login_required(login_url='/accounts/login')
 def follow(request):
     # print("follow is working")
+    # payload = {}
     if request.method == 'POST':
-        follower = request.POST['follower']
-        user = request.POST['user']
-        if FollowerCount.objects.filter(follower=follower, user=user).first():
-            delete_follower = FollowerCount.objects.get(follower=follower, user=user)
-            delete_follower.delete()
-            return redirect('myapp:profile', user_id=user)
+        actorName = request.POST['follower']
+        objectName = request.POST['user']
+        # actor = Author.objects.filter(username=actorName).first()
+        # actorName = request.user.username
+        actor = Author.objects.filter(username=actorName).first()
+        # object_id = request.POST.get("receiver_user_id")
+        object = Author.objects.filter(username=objectName).first()
+        # objectName = object.displayName
+
+        if FriendFollowRequest.objects.filter(actor=actor, object=object):
+            pass
+            # delete_follower = FriendFollowRequest.objects.get(actor=actor, object=object)
+            # delete_follower.delete()
+            # raise Exception('Friend request canceled')
         else:
-            new_follower = FollowerCount.objects.create(follower=follower, user=user)
-            new_follower.save()
-            return redirect('myapp:profile', user_id=user)
+            # localHostList = ['http://127.0.0.1:8000/', 'http://localhost:8000', 'https://cmput4042ndnetwork.herokuapp.com/']
+            if object.host in localHostList:
+                print("following local users...", object.username)
+                friendRequest = FriendFollowRequest.objects.create(
+                    actor=actor,
+                    object=object,
+                    summary=f'{actorName} wants to follow {objectName}')
+                friendRequest.save()
+            else:
+                friendRequest = FriendFollowRequest.objects.create(
+                    actor=actor,
+                    object=object,
+                    summary=f'{actorName} wants to follow {objectName}')
+                friendRequest.save()
+                print(f'following remote author {object.username}')
+                # if author is not local make post request to add to other user inbox
+                serializer = serializers.FriendFollowRequestSerializer(
+                    friendRequest)
+                print(f"{object.host}/service/authors/{object.username}/inbox")
+                print(json.dumps(serializer.data))
+
+                ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
+                # req = requests.Request('POST',f"{object.host}service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
+                authDictKey = object.host + "/service/"
+                req = requests.Request(
+                    'POST',
+                    f"{object.host}/service/authors/{object.username}/inbox",
+                    data=json.dumps(serializer.data),
+                    auth=HTTPBasicAuth(authDict[authDictKey][0],
+                                       authDict[authDictKey][1]),
+                    headers={'Content-Type': 'application/json'})
+                prepared = req.prepare()
+
+                s = requests.Session()
+                resp = s.send(prepared)
+
+                print("status code, ", resp.status_code)
+        return redirect('myapp:profile', user_id=objectName)
     else:
         return redirect('/')
+        #     payload['response'] = 'Friend request sent'
+        # if payload['response'] == None:
+        #     payload['response'] = 'Something went wrong'
+    # return HttpResponse(json.dumps(payload), content_type='application/json')
+    #     else:
+    #
+    #         return redirect('myapp:profile', user_id=object)
+
 
 @login_required(login_url='/accounts/login')
-def search(request):
-    author_list = Author.objects.all()
-    return render(request, 'feed.html', {'author_list':author_list})
+def friendRequests(request):
+    context = {}
+    actorName = request.user.username
+    actor = Author.objects.get(username=actorName)
+    friendRequests = FriendFollowRequest.objects.filter(object=actor)
+    context['friendRequests'] = friendRequests
+    return render(request, 'friendRequests.html', context)
+
+
+@login_required(login_url='/accounts/login')
+def acceptFriendRequest(request, actor_id):
+    objectName = request.user.username
+    object = Author.objects.get(username=objectName)
+    actor = Author.objects.get(username=actor_id)
+    if request.method == 'GET':
+        friendRequest_accept = FriendFollowRequest.objects.get(actor=actor,
+                                                               object=object)
+        if friendRequest_accept:
+            if Followers.objects.filter(user=object):
+                Followers.objects.get(user=object).items.add(actor)
+            else:
+                Followers.objects.create(user=object)
+                Followers.objects.get(user=object).items.add(actor)
+            return render(request, 'feed.html')
+
+
+# @login_required(login_url='/accounts/login')
+# def search(request):
+#     # TODO: Move this up
+#     import requests
+#     author_list = Author.objects.all()
+#     # get all authors from other nodes, append it
+#     raise ValueError('u kdf')
+#     for node in nodeArray:
+#         # make get request to other notes /service/authors/
+#         response = requests.get(f"{node}authors/", params=request.GET)
+#         if response.status_code == 200:
+#             print("SUCCESS")
+#         else:
+#             print("FAILURE")
+#         print(response)
+#         # create them into author objects
+#         # append them in to list, return them
+#     return render(request, 'feed.html', {'author_list':author_list})
+
 
 @login_required(login_url='/accounts/login')
 def getuser(request):
     username = request.GET['username']
     try:
-        current_author_info = Author.objects.get(displayName = username)
+        current_author_info = Author.objects.get(displayName=username)
     except:
         current_author_info = None
     if current_author_info == None:
         author_list = Author.objects.all()
         context = {
-            'username':username,
-            'author_list':author_list,
+            'username': username,
+            'author_list': author_list,
         }
         return render(request, 'profileNotFound.html', context)
     # current_author_info = get_object_or_404(Author, displayName = username)
@@ -402,15 +681,17 @@ def getuser(request):
         user_id = current_author_info.username
         return redirect('myapp:profile', user_id=user_id)
 
+
 @method_decorator(login_required, name='dispatch')
 class PostEditView(UpdateView):
     model = Post
-    fields = ['title','content','contentType','visibility']
+    fields = ['title', 'content', 'contentType', 'visibility']
     template_name = 'postEdit.html'
 
     def get_success_url(self):
         pk = self.kwargs['pk']
-        return reverse_lazy('myapp:postDetail', kwargs={'pk':pk})
+        return reverse_lazy('myapp:postDetail', kwargs={'pk': pk})
+
 
 @method_decorator(login_required, name='dispatch')
 class PostDeleteView(DeleteView):
@@ -418,9 +699,11 @@ class PostDeleteView(DeleteView):
     template_name = 'postDelete.html'
     success_url = reverse_lazy('myapp:postList')
 
+
 #
 # API
 #
+
 
 class AuthorAPIView(RetrieveUpdateAPIView):
     """ GET or PUT an Author object """
@@ -445,7 +728,9 @@ class AuthorsAPIView(ListAPIView):
     http_method_names = ['get']
 
     def list(self, request, *args, **kwargs):
-        serializer = serializers.AuthorSerializer(Author.objects.all(), many=True)
+        serializer = serializers.AuthorSerializer(
+            Author.objects.filter(host="https://" + request.get_host()),
+            many=True)
         return Response({"type": "authors", "items": serializer.data})
 
 
@@ -462,17 +747,20 @@ class FollowersAPIView(RetrieveAPIView):
         author = Author.objects.filter(uuid=uuid).first()
         followers = FollowerCount.objects.filter(user=author.username)
         for follower in followers:
-            author = model_to_dict(Author.objects.filter(username=follower.follower).first())
+            author = model_to_dict(
+                Author.objects.filter(username=follower.follower).first())
             serializer = serializers.AuthorSerializer(author)
             queryset.append(serializer.data)
         response = {"type": "followers", "items": queryset}
         return Response(response)
+
 
 class FollowerAPIView(RetrieveUpdateDestroyAPIView):
     """ GET if is a follower PUT a new follower DELETE an existing follower"""
 
     serializer_class = serializers.FollowersSerializer
     renderer_classes = [JSONRenderer]
+
     # TODO foreign author (currently our author)
 
     def usernames(self, *args, **kwargs):
@@ -484,7 +772,8 @@ class FollowerAPIView(RetrieveUpdateDestroyAPIView):
 
     def relation_check(self, *args, **kwargs):
         usernames = self.usernames()
-        followers = FollowerCount.objects.filter(user=usernames[1]).values_list('follower', flat=True)
+        followers = FollowerCount.objects.filter(
+            user=usernames[1]).values_list('follower', flat=True)
         if usernames[0] in followers:
             return True
         return False
@@ -498,34 +787,46 @@ class FollowerAPIView(RetrieveUpdateDestroyAPIView):
 
     def put(self, request, *args, **kwargs):
         if self.relation_check():
-            return Response({'following_relation_exist': 'True',
-                             'following_relation_put': 'False'})
+            return Response({
+                'following_relation_exist': 'True',
+                'following_relation_put': 'False'
+            })
         else:
             try:
                 usernames = self.usernames()
-                FollowerCount.objects.create(follower=usernames[0], user=usernames[1])
-                return Response({'following_relation_exist': 'False',
-                                 'following_relation_put': 'True'})
+                FollowerCount.objects.create(follower=usernames[0],
+                                             user=usernames[1])
+                return Response({
+                    'following_relation_exist': 'False',
+                    'following_relation_put': 'True'
+                })
             except:
-                return Response({'following_relation_exist': 'False',
-                                 'following_relation_put': 'False'})
+                return Response({
+                    'following_relation_exist': 'False',
+                    'following_relation_put': 'False'
+                })
 
     def delete(self, request, *args, **kwargs):
         if self.relation_check():
             usernames = self.usernames()
-            relation = FollowerCount.objects.filter(follower=usernames[0]).filter(user=usernames[1])
+            relation = FollowerCount.objects.filter(
+                follower=usernames[0]).filter(user=usernames[1])
             try:
                 relation.delete()
-                return Response({'following_relation_exist': 'True',
-                                 'following_relation_delete': 'True'})
+                return Response({
+                    'following_relation_exist': 'True',
+                    'following_relation_delete': 'True'
+                })
             except:
-                return Response({'following_relation_exist': 'True',
-                                 'following_relation_delete': 'False'})
+                return Response({
+                    'following_relation_exist': 'True',
+                    'following_relation_delete': 'False'
+                })
         else:
-            return Response({'following_relation_exist': 'False',
-                                 'following_relation_delete': 'False'})
-
-# TODO FollowRequest is not complete (after Project 2)
+            return Response({
+                'following_relation_exist': 'False',
+                'following_relation_delete': 'False'
+            })
 
 
 class PostAPIView(CreateModelMixin, RetrieveUpdateDestroyAPIView):
@@ -552,12 +853,16 @@ class PostAPIView(CreateModelMixin, RetrieveUpdateDestroyAPIView):
             return HttpResponseNotFound("author not exist")
         data = request.data
         try:
-            new_post = Post.objects.create(title=data["title"], uuid=post_id, description=data["description"],
-                                           content=data["content"],
-                                           contentType=data["contentType"], author=author,
-                                           unparsedCategories=data["categories"],
-                                           visibility=data["visibility"],
-                                           image_b64=data["post_image"])
+            new_post = Post.objects.create(
+                title=data["title"],
+                uuid=post_id,
+                description=data["description"],
+                content=data["content"],
+                contentType=data["contentType"],
+                author=author,
+                unparsedCategories=data["categories"],
+                visibility=data["visibility"],
+                image_b64=data["post_image"])
             unparsed_cat = new_post.unparsedCategories
             cat_list = unparsed_cat.split()
             for cat in cat_list:
@@ -567,19 +872,39 @@ class PostAPIView(CreateModelMixin, RetrieveUpdateDestroyAPIView):
                 new_post.categories.add(new_cat)
                 new_post.save()
 
-            new_post.id = request.get_host()+ "/authors/" + str(new_post.author.uuid) + "/posts/" + str(new_post.uuid)
-            new_post.source = request.get_host()+ "/post/" + str(new_post.uuid)
-            new_post.origin = request.get_host()+ "/post/" + str(new_post.uuid)
-            new_post.comments = request.get_host()+ "/post/" + str(new_post.uuid)
+            new_post.id = request.get_host() + "/authors/" + str(
+                new_post.author.uuid) + "/posts/" + str(new_post.uuid)
+            new_post.source = request.get_host() + "/post/" + str(
+                new_post.uuid)
+            new_post.origin = request.get_host() + "/post/" + str(
+                new_post.uuid)
+            new_post.comments = request.get_host() + "/post/" + str(
+                new_post.uuid) + '/comments'
             new_post.save()
         except Exception as e:
             return HttpResponseNotFound(e)
 
-        Inbox.objects.filter(author__username=author.username)[0].items.add(new_post)
-        followersID = FollowerCount.objects.filter(user=author.username)
+        # TODO: lucas: verify this part doesnt need image post stuff like on
+        # line 163 of this file.\
 
-        for followerID in followersID:
-            Inbox.objects.filter(author__username=followerID.follower)[0].items.add(new_post)
+        # adding post to inbox of current author
+        # add post to InboxItem which links to Inbox
+        InboxItem.objects.create(
+            inbox=Inbox.objects.filter(
+                author__username=author.username).first(),
+            inbox_item_type='post',
+            item=new_post,
+        )
+
+        # adding post to inbox of all followers of current author
+        followers = Followers.objects.filter(user=author.username)
+        for follower in followers:
+            InboxItem.objects.create(
+                inbox=Inbox.objects.filter(
+                    author__username=follower.username).first(),
+                inbox_item_type='post',
+                item=new_post,
+            )
         serializer = serializers.PostSerializer(new_post)
         return Response(serializer.data)
 
@@ -599,11 +924,15 @@ class PostsAPIView(CreateModelMixin, ListAPIView):
             return HttpResponseNotFound("author not exist")
         data = request.data
         try:
-            new_post = Post.objects.create(title=data["title"], description=data["description"], content=data["content"],
-                                          contentType=data["contentType"], author=author,
-                                          unparsedCategories=data["categories"],
-                                          visibility=data["visibility"],
-                                          post_image=data["post_image"])
+            new_post = Post.objects.create(
+                title=data["title"],
+                description=data["description"],
+                content=data["content"],
+                contentType=data["contentType"],
+                author=author,
+                unparsedCategories=data["categories"],
+                visibility=data["visibility"],
+                post_image=data["post_image"])
             unparsed_cat = new_post.unparsedCategories
             cat_list = unparsed_cat.split()
             for cat in cat_list:
@@ -616,24 +945,48 @@ class PostsAPIView(CreateModelMixin, ListAPIView):
             new_post.save()
         except Exception as e:
             return HttpResponseNotFound(e)
-        new_post.id = request.get_host() + "/authors/" + str(new_post.author.uuid) + "/posts/" + str(new_post.uuid)
-        new_post.source = request.get_host()+ "/post/" + str(new_post.uuid)
-        new_post.origin = request.get_host()+ "/post/" + str(new_post.uuid)
-        new_post.comments = request.get_host()+ "/post/" + str(new_post.uuid)
+        new_post.id = request.get_host() + "/authors/" + str(
+            new_post.author.uuid) + "/posts/" + str(new_post.uuid)
+        new_post.source = request.get_host() + "/post/" + str(new_post.uuid)
+        new_post.origin = request.get_host() + "/post/" + str(new_post.uuid)
+        new_post.comments = request.get_host() + "/post/" + str(new_post.uuid)
         new_post.save()
 
-        Inbox.objects.filter(author__username=author.username)[0].items.add(new_post)
-        followersID = FollowerCount.objects.filter(user=author.username)
+        # to modify
+        # Inbox.objects.filter(
+        #     author__username=author.username)[0].items.add(new_post)
+        # followersID = FollowerCount.objects.filter(user=author.username)
+        # for followerID in followersID:
+        #     Inbox.objects.filter(
+        #         author__username=followerID.follower)[0].items.add(new_post)
 
-        for followerID in followersID:
-            Inbox.objects.filter(author__username=followerID.follower)[0].items.add(new_post)
+        # adding post to inbox of current author
+        # add post to InboxItem which links to Inbox
+        InboxItem.objects.create(
+            inbox=Inbox.objects.filter(
+                author__username=author.username).first(),
+            inbox_item_type='post',
+            item=new_post,
+        )
+
+        # adding post to inbox of all followers of current author
+        followers = Followers.objects.filter(user=author.username)
+        for follower in followers:
+            InboxItem.objects.create(
+                inbox=Inbox.objects.filter(
+                    author__username=follower.username).first(),
+                inbox_item_type='post',
+                item=new_post,
+            )
+
         serializer = serializers.PostSerializer(new_post)
         return Response(serializer.data)
 
     def list(self, request, *args, **kwargs):
         author_uuid = self.kwargs['author']
         author = Author.objects.filter(uuid=author_uuid).first()
-        posts = Post.objects.filter(author=author.username, visibility="PUBLIC")
+        posts = Post.objects.filter(author__username=author.username,
+                                    visibility="PUBLIC")
         serializer = serializers.PostSerializer(posts, many=True)
         return Response({"type": "posts", "items": serializer.data})
 
@@ -662,7 +1015,8 @@ class CommentsAPIView(CreateModelMixin, ListAPIView):
 
     def list(self, request, *args, **kwargs):
         post_id = self.kwargs['post']
-        serializer = serializers.CommentsSerializer(Comment.objects.filter(post=post_id), many=True)
+        serializer = serializers.CommentsSerializer(
+            Comment.objects.filter(post=post_id), many=True)
         return Response({"type": "comments", "items": serializer.data})
 
     def post(self, request, *args, **kwargs):
@@ -674,16 +1028,20 @@ class CommentsAPIView(CreateModelMixin, ListAPIView):
             return HttpResponseNotFound("author or post not exist")
 
         data = request.data
-        new_comment = Comment.objects.create(author=current_user, comment=data["comment"],
-                                             contentType=data["contentType"], post=post)
+        new_comment = Comment.objects.create(author=current_user,
+                                             comment=data["comment"],
+                                             contentType=data["contentType"],
+                                             post=post)
         new_comment.save()
-        new_comment.id = request.get_host() + "/authors/" + str(post.author.uuid) + "/posts/" + str(
-            post.uuid) + "/comments/" + str(new_comment.uuid)
+        new_comment.id = request.get_host() + "/authors/" + str(
+            post.author.uuid) + "/posts/" + str(
+                post.uuid) + "/comments/" + str(new_comment.uuid)
         new_comment.save()
         post.count += 1
         post.save()
         serializer = serializers.CommentsSerializer(new_comment)
         return Response(serializer.data)
+
 
 # TODO Like API - 1: send a like object
 
@@ -698,6 +1056,7 @@ class LikesAPIView(ListAPIView):
         post_id = self.kwargs['post']
         return Like.objects.filter(object=post_id)
 
+
 # TODO Like API - 3: comment likes
 
 
@@ -705,100 +1064,116 @@ class LikedAPIView(ListAPIView):
     serializer_class = serializers.LikesSerializer
     pagination_class = CustomPageNumberPagination
     # renderer_classes = (renderers.LikedRenderer,)
-    lookup_fields = ('author',)
+    lookup_fields = ('author', )
 
     def list(self, request, *args, **kwargs):
         author_uuid = self.kwargs['author']
         author = Author.objects.filter(uuid=author_uuid).first()
-        like = Like.objects.filter(object__visibility="PUBLIC", author=author.username)
+        like = Like.objects.filter(object__visibility="PUBLIC",
+                                   author=author.username)
         serializer = serializers.LikesSerializer(like, many=True)
         return Response({"type": "liked", "items": serializer.data})
+
 
 class InboxAPIView(CreateModelMixin, RetrieveDestroyAPIView):
     """ GET inbox POST post/follow/like DELETE inbox_obj"""
     serializer_class = serializers.InboxSerializer
     pagination_class = CustomPageNumberPagination
-    lookup_fields = ('author',)
+    lookup_fields = ('author', )
 
     def get_object(self):
         author_uuid = self.kwargs['author']
         author = Author.objects.filter(uuid=author_uuid).first()
-        return Inbox.objects.filter(author=author.username).first()
+        return Inbox.objects.filter(author__username=author.username).first()
 
     def post(self, request, *args, **kwargs):
         # check if user in url exists
-        current_username = self.kwargs['author']
-        current_user = Author.objects.filter(username=current_username).first()
+        uuid = self.kwargs['author']
+        current_user = Author.objects.filter(uuid=uuid).first()
         if current_user is None:
             return HttpResponseNotFound("author (in url) not exist")
         data = request.data
 
-        try:
-            # 1. publish a post
-            # don't care if these two have a friend relation, just push the post into its follower's inbox
-            if data["type"] == "post":
-                # check if user in the body (who post the post) exists
-                author = Author.objects.filter(username=data["author"]).first()
-                if author is None:
-                    return HttpResponseNotFound("author (in body) not exist")
+        # try:
+        # 1. publish a post
+        # don't care if these two have a friend relation, just push the post into its follower's inbox
+        if data["type"] == "post":
+            # check if user in the body (who post the post) exists
+            author = Author.objects.filter(id=data["author"]["id"]).first()
+            if author is None:
+                return HttpResponseNotFound("author (in body) not exist")
 
-                new_post = Post.objects.create(title=data["title"], description=data["description"],
-                                               content=data["content"],
-                                               contentType=data["contentType"], author=author,
-                                               unparsedCategories=data["unparsedCategories"],
-                                               visibility=data["visibility"],
-                                               post_image=data["post_image"])
-                unparsed_cat = new_post.unparsedCategories
-                cat_list = unparsed_cat.split()
-                for cat in cat_list:
-                    new_cat = Category()
-                    new_cat.cat = cat
-                    new_cat.save()
-                    new_post.categories.add(new_cat)
-                    new_post.save()
-
-                try:
-                    new_post.save()
-                except Exception as e:
-                    return HttpResponseNotFound(e)
-                new_post.id = request.get_host() + "/authors/" + str(new_post.author.uuid) + "/posts/" + str(
-                    new_post.uuid)
-                new_post.source = request.get_host() + "/post/" + str(new_post.uuid)
-                new_post.origin = request.get_host() + "/post/" + str(new_post.uuid)
-                new_post.comments = request.get_host() + "/post/" + str(new_post.uuid)
+            new_post = Post.objects.create(
+                title=data["title"],
+                description=data["description"],
+                content=data["content"],
+                contentType=data["contentType"],
+                author=author,
+                unparsedCategories=data["categories"],
+                visibility=data["visibility"],
+                image_b64=data["image_b64"])
+            unparsed_cat = new_post.unparsedCategories
+            for cat in unparsed_cat:
+                new_cat = Category()
+                new_cat.cat = cat
+                new_cat.save()
+                new_post.categories.add(new_cat)
                 new_post.save()
 
-                Inbox.objects.filter(author__username=author.username)[0].items.add(new_post)
-                followersID = FollowerCount.objects.filter(user=author.username)
+            try:
+                new_post.save()
+            except Exception as e:
+                return HttpResponseNotFound(e)
+            new_post.id = request.get_host() + "/authors/" + str(
+                new_post.author.uuid) + "/posts/" + str(new_post.uuid)
+            new_post.source = request.get_host() + "/post/" + str(
+                new_post.uuid)
+            new_post.origin = request.get_host() + "/post/" + str(
+                new_post.uuid)
+            new_post.comments = request.get_host() + "/post/" + str(
+                new_post.uuid)
+            new_post.save()
+            Inbox.objects.filter(
+                author__username=current_user.username)[0].items.add(new_post)
 
-                for followerID in followersID:
-                    Inbox.objects.filter(author__username=followerID.follower)[0].items.add(new_post)
+            serializer = serializers.PostSerializer(new_post)
+            return Response(serializer.data)
 
-                serializer = serializers.PostSerializer(new_post)
-                return Response(serializer.data)
-            # TODO 2. friend request
-            elif data["type"] == "friend_request":
-                pass
+        elif data["type"].lower() == "follow":
+            remote_author = Author.objects.filter(
+                id=data['actor']['id']).first()
+            our_author = Author.objects.filter(
+                username=data['object']['displayName']).first()
+            friend_request = FriendFollowRequest.objects.create(
+                summary=data["summary"],
+                actor=remote_author,
+                object=our_author)
+            friend_request.save()
 
-            elif data["type"] == "like":
-                # check if post in the body (the post that user gives a like) exists
-                post = Post.objects.filter(uuid=data["object"]).first()
-                if post is None:
-                    return HttpResponseNotFound("post not exist")
-                like_before = Like.objects.filter(author=current_user, object=post).first()
-                if like_before is not None:
-                    return HttpResponseNotFound("user has given a like before")
-                new_like = Like.objects.create(author=current_user, object=post)
-                new_like.save()
-                post.likes += 1
-                post.save()
-                # TODO like could be comments/posts
-                serializer = serializers.LikeSerializer(new_like)
-                # TODO push into inbox
-                return Response(serializer.data)
+            serializer = serializers.FriendFollowRequestSerializer(
+                friend_request)
+            return Response(serializer.data)
 
-        except Exception as e:
-            return HttpResponseNotFound(e)
+        elif data["type"] == "like":
+            # check if post in the body (the post that user gives a like) exists
+            post = Post.objects.filter(uuid=data["object"]).first()
+            if post is None:
+                return HttpResponseNotFound("post not exist")
+            like_before = Like.objects.filter(author=current_user,
+                                              object=post).first()
+            if like_before is not None:
+                return HttpResponseNotFound("user has given a like before")
+            new_like = Like.objects.create(author=current_user, object=post)
+            new_like.save()
+            post.likes += 1
+            post.save()
+            # TODO like could be comments/posts
+            serializer = serializers.LikeSerializer(new_like)
+            # TODO push into inbox
+            return Response(serializer.data)
+
+        # except Exception as e:
+        #     return HttpResponseNotFound(e)
 
     def delete(self, request, *args, **kwargs):
         author_uuid = self.kwargs['author']
@@ -810,4 +1185,3 @@ class InboxAPIView(CreateModelMixin, RetrieveDestroyAPIView):
 
         serializer = serializers.InboxSerializer(new_inbox)
         return Response(serializer.data)
-

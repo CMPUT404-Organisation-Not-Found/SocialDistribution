@@ -42,16 +42,7 @@ class AuthorInfoForm(forms.ModelForm):
             'https://www.imgur.com/dj2kjdf',
         })
 
-    #TODO: Add cleaned profilePIcture & github methods
-    def clean_github(self):
-        breakpoint()
-        github_input = self.cleaned_data['github']
-        raise ValidationError(f"{github_input} is invalid")
-
-    def clean_profileImage(self):
-        profile_image_input = self.cleaned_data['profileImage']
-        raise ValidationError(f"{profile_image_input} is invalid")
-        
+        #TODO: Add cleaned profilePIcture & github methods
     class Meta:
         model = Author
         fields = (

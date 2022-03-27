@@ -7,7 +7,7 @@
     <div>
         <div class="options"><a href="{% url "myapp:postList" %}"><i class="fa-solid fa-wand-sparkles"></i>&ensp;Feed</a></div>
         <div class="options"><a href=""><i class="fa-solid fa-at"></i>&ensp;1-to-1</a></div>
-        <div class="options"><a href=""><i class="fa-solid fa-envelope-open"></i>&ensp;Notification</a></div>
+        <div class="options"><a href="{% url "myapp:friendRequests" %}"><i class="fa-solid fa-envelope-open"></i>&ensp;Notification</a></div>
         <div class="options"><a href="{% url "myapp:profile" user.username %}"><i class="fa-solid fa-user"></i>&ensp;Profile</a></div>
     </div>
 </div>

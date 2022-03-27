@@ -1,3 +1,8 @@
+#follow_request_button {
+    background-color: #ffc0cb; 
+    border: #ffc0cb;
+}
+
 .column {
     float: left;
     background-color: #FBFBFB;

@@ -5,6 +5,11 @@
 /*    !* display: table-cell; *!*/
 /*}*/
 
+#follow_request_button {
+    background-color: #ffc0cb; 
+    border: #ffc0cb;
+}
+
 .colContainer {
     display: table; /* Make the container element behave like a table */
     width: 100%; /* Set full-width to expand the whole page */

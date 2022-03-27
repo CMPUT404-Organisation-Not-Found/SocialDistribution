@@ -24,13 +24,14 @@ def signup(request):
 
             github = author_form.cleaned_data['github']
             author = Author(username=user.username,
-                            host=request.get_host(),
+                            host="http://" + request.get_host(),
                             displayName=user.username,
                             profileImage=profile_image_string,
                             github=github)
 
             author.save()
-            author.id = request.get_host()+"/authors/"+str(author.uuid)
+            author.id = "http://"+request.get_host()+"/authors/"+str(author.uuid)
+            print("author id is "+author.id)
             author.save()
             inbox = Inbox(author=author)
             inbox.save()

@@ -5,14 +5,21 @@
 {% block content %}
 
     {% load static %}
-    <link rel="stylesheet" type="text/css" href="{% static 'css/feed.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'css/profile.css' %}">
 
     <link rel="stylesheet" href="https://unpkg.com/github-calendar@latest/dist/github-calendar-responsive.css"/>
+   
+   <style>
+        #follow_request_button {
+            background-color: #ffc0cb; 
+            border: #ffc0cb;
+            margin-left: 10%;
+        }
+    </style>
 
     <div class="colContainer">
         {% include "sidebarLeft.html" %}
         <div class="column middle">
-
             <div class="add-btn">
                 <!-- <img>{{ current_author_info.profileImage }}</a></img> -->
                 <!-- <img scr="../images/avatar1.jpg", alt="user avatar", class="avatar"> -->
@@ -24,17 +31,29 @@
                     <div class="userInfo">name: {{ current_author_info.displayName }}</div>
                     <!-- <button class="followerButton">Follower</button> -->
                     <!-- <a href="#" class="followButton">Follower</a> -->
-                    <span class="userInfo" style="padding: left;"><b>{{ count_following }}  Following</b></span>
-                    <span class="userInfo" style="padding: 50px;"><b>{{ count_followers }}  Followers</b></span>
+                    <span class="userInfo" style="padding: left;"><b>{{ count_followers }}  Followers</b></span>
                     <input type="hidden" value="{{ user.username }}" name="follower"/>
                     <input type="hidden" value="{{ current_author_info.username }}" name="user"/>
                     {% if current_author_info.username == user.username %}
                         <a href="" data-ripple="">Edit Account</a>
                     {% else %}
                         <a data-ripple="">
-                            <button type="submit"
-                                    style="background-color: #ffc0cb; border: #ffc0cb;">{{ button_text }}</button>
+                            <button type="submit" id="follow_request_button">{{ button_text }}</button>
                         </a>
+                        <!-- {% include 'sendFriendRequest.html' %}
+                        <script type="text/javascript">
+                            function onFriendRequestSent(){
+                                location.reload();
+                            }
+                            // print("!!!!!!!!\n", 'id not match', '!!!!!!!!!!\n')
+                            var sendFriendRequestBtn = document.getElementById("follow_request_button")
+                            //if (sendFriendRequestBtn == null){
+                                //print("!!!!!!!!\n", 'id not match', '!!!!!!!!!!\n')
+                            sendFriendRequestBtn.addEventListener("click", function(){
+                                sendFriendRequest("suzihan", onFriendRequestSent)
+                            })
+                            //}
+                        </script> -->
                     {% endif %}
                 </form>
                 <!-- <button class="followerButton">Following</button> -->
@@ -61,13 +80,21 @@
                     calendar[0].style.border = "none";
                 </script>
 
-                {% for post in posts.all%}
+                {% for post in posts %}
                     <div class="singlePost position-relative">
                     {% if post.type == 'share'%}
-                        <div class="postActions" style="text-align: left; color: black;"> <span style="font-weight: bold; color: #F28482; font-size: 18px;">{{post.author.id}}</span> shared post from <a a style="color: rgb(135, 172, 228); font-style: italic; font-size: 15px;" href="{{post.source}}">{{post.source}}</a></div>
+                        <div class="postActions" style="text-align: left; color: black;"> 
+                            <span style="font-weight: bold; color: #F28482; font-size: 18px;">
+                                {{post.author.id}}
+                            </span> 
+                            shared post from 
+                            <a a style="color: rgb(135, 172, 228); font-style: italic; font-size: 15px;" href="{{post.source}}">
+                                {{post.source}}
+                            </a></div>
                         <div class="postBody">Share note: {{post.title}}</div>
                          <div class="postBody" style="color: #F28482; background-color: #d5d5d584; margin-left: 5%;">Original Post Content:<br>{{post.description}}</div>
-                        <div class="postActions" style="float: left; margin-left: 7%; font-size: 12px;"><a style="color: rgb(135, 172, 228); font-style: italic;" href="{{ post.origin }}">link to the original post</a></div>
+                        <div class="postActions" style="float: left; margin-left: 7%; font-size: 12px;">
+                            <a style="color: rgb(135, 172, 228); font-style: italic;" href="{{ post.origin }}">link to the original post</a></div>
                     
                     {% else %}
                         <div class="authorName">Author: {{ post.author.username }}</div>
@@ -77,7 +104,7 @@
                         <div class="postTime">{{ post.published }}
                             <div class="postVis">Visibility: {{ post.visibility }}</div>
                         </div>
-                        <!-- <div>UUID: {{ post.id }}</div> -->
+                        <div>UUID: {{ post.id }}</div>
                         <div class="postActions"><a href="{% url 'myapp:sharePost' post.uuid %}"><i class="fa-solid fa-share"></i>&ensp;Share</a>&emsp;<a
                                 href="/like?post_id={{post.uuid}}"><i class="fa-solid fa-heart"></i>&ensp;{{post.likes}}</a>&emsp;<a
                                 href="{% url 'myapp:postDetail' post.uuid %}"><i class="fa-solid fa-comment"></i>&ensp;{{ post.count }}&emsp;</a>
