@@ -60,7 +60,7 @@ authDict = {
 # nodeArray = ['https://social-dist-wed.herokuapp.com/service/']
 # nodeArray = ['http://127.0.0.1:7080/service/']
 localHostList = [
-    'http://127.0.0.1:7070/', 'http://127.0.0.1:8000/',
+    'http://127.0.0.1:7070/', 'http://127.0.0.1:8000/', 'https://localhost:8000',
     'http://localhost:8000', 'https://c404-social-distribution.herokuapp.com/'
 ]
 
@@ -140,11 +140,11 @@ class NewPostView(View):
             newPost.author = Author.objects.get(username=request.user.username)
             newPost.id = request.get_host() + "/authors/" + str(
                 newPost.author.uuid) + "/posts/" + str(newPost.uuid)
+            newPost.save()
 
             # adding categories to post
             unparsedCat = newPost.unparsedCategories
             catList = unparsedCat.split()
-            newPost.save()
             for cat in catList:
                 newCat = Category()
                 newCat.cat = cat
@@ -179,8 +179,6 @@ class NewPostView(View):
                 inbox_item_type="post",
                 item=newPost,
             )
-            # Inbox.objects.filter(author__username=request.user.username).first(
-            # ).items.add(newPost)
 
             user = Author.objects.get(username=request.user.username)
             try:
@@ -191,8 +189,6 @@ class NewPostView(View):
                     # breakpoint()
                     if follower.host in localHostList:
                         # add it to inbox of follower
-                        # Inbox.objects.filter(author__username=follower.username
-                        #                      ).first().items.add(newPost)
                         InboxItem.objects.create(
                             inbox=Inbox.objects.filter(
                                 author__username=follower.username).first(),
@@ -327,8 +323,8 @@ class SharedPostView(View):
 
         if form.is_valid():
             new_post = Post(
-                type=
-                'share',  #TODO: Su: please confirm that type is allowed to be updated
+                #TODO: Su: please confirm that type is allowed to be updated
+                type='share',  
                 title=self.request.POST.get('title'),
                 source=source_text + str(pk),
                 origin=original_post.origin,
@@ -573,7 +569,11 @@ def follow(request):
 
                 ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
                 # req = requests.Request('POST',f"{object.host}service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
-                authDictKey = object.host + "/service/"
+                print('!!!!!',object.host)
+                if 'cmput4042ndnetwork' in object.host or object.host in localHostList:
+                    authDictKey = object.host + "/service/"
+                else:
+                    authDictKey = object.host + "service/"
                 req = requests.Request(
                     'POST',
                     f"{object.host}/service/authors/{object.username}/inbox",
