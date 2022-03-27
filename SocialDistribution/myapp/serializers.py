@@ -3,14 +3,16 @@ from rest_framework import serializers, pagination
 from rest_framework.relations import SlugRelatedField
 from rest_framework.serializers import ModelSerializer
 from . import models
-from .models import Post, Author
+from .models import Author, Post, Comment, Like, Inbox, InboxItem, FriendFollowRequest
 
 
 class AuthorSerializer(ModelSerializer):
 
     class Meta:
         model = models.Author
-        fields = ('type', 'id', 'username', "host", "displayName", "github", "profileImage")
+        fields = ('type', 'id', 'username', "host", "displayName", "github",
+                  "profileImage")
+
 
 # class SingleAuthorSerializer(ModelSerializer):
 #
@@ -31,7 +33,7 @@ class FriendFollowRequestSerializer(ModelSerializer):
     class Meta:
         model = models.FriendFollowRequest
         # fields = '__all__'
-        fields = ("type","summary","actor","object")
+        fields = ("type", "summary", "actor", "object")
         depth = 1
 
 
@@ -50,7 +52,10 @@ class PostSerializer(ModelSerializer):
 
     class Meta:
         model = models.Post
-        fields = ("type", "title", "id", "source", "origin", "description", "content", "contentType", "author", "categories", "count", "comments", "published", "visibility", "unlisted", "likes", "image_b64")
+        fields = ("type", "title", "id", "source", "origin", "description",
+                  "content", "contentType", "author", "categories", "count",
+                  "comments", "published", "visibility", "unlisted", "likes",
+                  "image_b64")
         depth = 1
 
 
@@ -59,7 +64,8 @@ class CommentsSerializer(ModelSerializer):
 
     class Meta:
         model = models.Comment
-        fields = ("type", "author", "comment", "contentType", "published", "id")
+        fields = ("type", "author", "comment", "contentType", "published",
+                  "id")
 
 
 class LikesSerializer(ModelSerializer):
@@ -76,6 +82,7 @@ class LikesSerializer(ModelSerializer):
         post = Post.objects.filter(uuid=post_uuid).first()
         return model_to_dict(post).get("id")
 
+
 # class LikeSerializer(ModelSerializer):
 #
 #     class Meta:
@@ -83,9 +90,10 @@ class LikesSerializer(ModelSerializer):
 #         fields = '__all__'
 #         depth = 1
 
+
 class InboxSerializer(ModelSerializer):
     author = serializers.SerializerMethodField('get_author')
-    items = PostSerializer(many=True)
+    items = serializers.SerializerMethodField('get_items')
 
     class Meta:
         model = models.Inbox
@@ -98,4 +106,33 @@ class InboxSerializer(ModelSerializer):
         author = Author.objects.filter(username=author_username).first()
         return model_to_dict(author).get("id")
 
+    def get_items(self, obj):
+        inbox = obj  # obj is inbox object
+        # get items from the inbox
+        # for each item call its serializer method
+        # return the serialized items
+        items = inbox.inboxitem_set.all()
+        itemArray = []
+        for item in items:
+            if item.inbox_item_type == "post":
+                postObject = Post.objects\
+                    .filter(uuid=item.item_id).first()
+                itemArray.append(PostSerializer(postObject).data)
 
+            elif item.inbox_item_type == "comment":
+                commentObject = Comment.objects\
+                    .filter(uuid=item.item_id).first()
+                itemArray.append(CommentsSerializer(commentObject).data)
+
+            elif item.inbox_item_type == "like":
+                likeObject = Like.objects\
+                    .filter(id=item.item_id).first()
+                itemArray.append(LikesSerializer(likeObject).data)
+
+            elif item.inbox_item_type == "friend_follow_request":
+                friendFollowRequestObject = FriendFollowRequest.objects\
+                    .filter(id=item.item_id).first()
+                itemArray.append(
+                    FriendFollowRequestSerializer(friendFollowRequestObject)\
+                        .data)
+        return itemArray

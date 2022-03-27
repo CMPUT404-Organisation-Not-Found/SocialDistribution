@@ -81,9 +81,6 @@ class PostListView(View):
         # sort responsePosts by published
         responsePosts.sort(key=lambda x: x.published, reverse=True)
 
-        # posts = Inbox.objects.filter(
-        #     author__username=request.user.username)[0].items
-
         for node in nodeArray:
             # make get request to other notes /service/authors/
             response = requests.get(f"{node}authors/",
@@ -140,11 +137,11 @@ class NewPostView(View):
             newPost.author = Author.objects.get(username=request.user.username)
             newPost.id = request.get_host() + "/authors/" + str(
                 newPost.author.uuid) + "/posts/" + str(newPost.uuid)
-            newPost.save()
 
             # adding categories to post
             unparsedCat = newPost.unparsedCategories
             catList = unparsedCat.split()
+            newPost.save()
             for cat in catList:
                 newCat = Category()
                 newCat.cat = cat
@@ -863,20 +860,32 @@ class PostAPIView(CreateModelMixin, RetrieveUpdateDestroyAPIView):
             new_post.origin = request.get_host() + "/post/" + str(
                 new_post.uuid)
             new_post.comments = request.get_host() + "/post/" + str(
-                new_post.uuid)
+                new_post.uuid) + '/comments'
             new_post.save()
         except Exception as e:
             return HttpResponseNotFound(e)
 
+        # TODO: lucas: verify this part doesnt need image post stuff like on
+        # line 163 of this file.\
 
-# to modify
-        Inbox.objects.filter(
-            author__username=author.username)[0].items.add(new_post)
-        followersID = FollowerCount.objects.filter(user=author.username)
+        # adding post to inbox of current author
+        # add post to InboxItem which links to Inbox
+        InboxItem.objects.create(
+            inbox=Inbox.objects.filter(
+                author__username=author.username).first(),
+            inbox_item_type='post',
+            item=new_post,
+        )
 
-        for followerID in followersID:
-            Inbox.objects.filter(
-                author__username=followerID.follower)[0].items.add(new_post)
+        # adding post to inbox of all followers of current author
+        followers = Followers.objects.filter(user=author.username)
+        for follower in followers:
+            InboxItem.objects.create(
+                inbox=Inbox.objects.filter(
+                    author__username=follower.username).first(),
+                inbox_item_type='post',
+                item=new_post,
+            )
         serializer = serializers.PostSerializer(new_post)
         return Response(serializer.data)
 
@@ -923,14 +932,34 @@ class PostsAPIView(CreateModelMixin, ListAPIView):
         new_post.origin = request.get_host() + "/post/" + str(new_post.uuid)
         new_post.comments = request.get_host() + "/post/" + str(new_post.uuid)
         new_post.save()
-        # to modify
-        Inbox.objects.filter(
-            author__username=author.username)[0].items.add(new_post)
-        followersID = FollowerCount.objects.filter(user=author.username)
 
-        for followerID in followersID:
-            Inbox.objects.filter(
-                author__username=followerID.follower)[0].items.add(new_post)
+        # to modify
+        # Inbox.objects.filter(
+        #     author__username=author.username)[0].items.add(new_post)
+        # followersID = FollowerCount.objects.filter(user=author.username)
+        # for followerID in followersID:
+        #     Inbox.objects.filter(
+        #         author__username=followerID.follower)[0].items.add(new_post)
+
+        # adding post to inbox of current author
+        # add post to InboxItem which links to Inbox
+        InboxItem.objects.create(
+            inbox=Inbox.objects.filter(
+                author__username=author.username).first(),
+            inbox_item_type='post',
+            item=new_post,
+        )
+
+        # adding post to inbox of all followers of current author
+        followers = Followers.objects.filter(user=author.username)
+        for follower in followers:
+            InboxItem.objects.create(
+                inbox=Inbox.objects.filter(
+                    author__username=follower.username).first(),
+                inbox_item_type='post',
+                item=new_post,
+            )
+
         serializer = serializers.PostSerializer(new_post)
         return Response(serializer.data)
 
@@ -1036,7 +1065,7 @@ class InboxAPIView(CreateModelMixin, RetrieveDestroyAPIView):
     def get_object(self):
         author_uuid = self.kwargs['author']
         author = Author.objects.filter(uuid=author_uuid).first()
-        return Inbox.objects.filter(author=author.username).first()
+        return Inbox.objects.filter(author__username=author.username).first()
 
     def post(self, request, *args, **kwargs):
         # check if user in url exists

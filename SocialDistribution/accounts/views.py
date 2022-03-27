@@ -30,7 +30,7 @@ def signup(request):
                             github=github)
 
             author.save()
-            author.id = "http://"+request.get_host()+"/authors/"+str(author.uuid)
+            author.id = "https://"+request.get_host()+"/authors/"+str(author.uuid)
             print("author id is "+author.id)
             author.save()
             inbox = Inbox(author=author)

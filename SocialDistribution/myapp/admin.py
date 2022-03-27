@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Author, Followers, FriendFollowRequest, Post, Like, Liked
+from .models import *
 #from .models import Profile
 
 
@@ -10,4 +10,5 @@ admin.site.register(FriendFollowRequest)
 admin.site.register(Like)
 admin.site.register(Liked)
 admin.site.register(Followers)
-#admin.site.register(Profile)
+admin.site.register(InboxItem)
+admin.site.register(Comment)
