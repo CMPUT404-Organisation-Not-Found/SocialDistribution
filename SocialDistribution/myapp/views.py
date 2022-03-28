@@ -321,7 +321,8 @@ class SharedPostView(View):
         if form.is_valid():
             new_post = Post(
                 #TODO: Su: please confirm that type is allowed to be updated
-                type='share',  
+                # eg if author.user is not the same as the user who is sharing the post
+                type='share',
                 title=self.request.POST.get('title'),
                 source=source_text + str(pk),
                 origin=original_post.origin,
@@ -345,7 +346,6 @@ class SharedPostView(View):
         )
 
         try:
-            #TODO: this is a hack, please fix
             followers = Followers.objects.get(
                 user__username=request.user.username).items.all()
             # followersID = FollowerCount.objects.filter(user=request.user.username)
@@ -357,6 +357,7 @@ class SharedPostView(View):
                     inbox_item_type='post',
                     item=new_post,
                 )
+                # TODO: darren make this work for remote authors too (just call API or something lol)
         except Exception as e:
             print(e, 'No followers for this author')
 
@@ -367,7 +368,6 @@ class SharedPostView(View):
             'form': form,
         }
         return redirect('myapp:postList')
-        #return render(request, 'share.html', context)
 
 
 @login_required(login_url='/accounts/login')
@@ -566,7 +566,6 @@ def follow(request):
 
                 ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
                 # req = requests.Request('POST',f"{object.host}service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
-                print('!!!!!',object.host)
                 if 'cmput4042ndnetwork' in object.host or object.host in localHostList:
                     authDictKey = object.host + "/service/"
                 else:
@@ -865,7 +864,7 @@ class PostAPIView(CreateModelMixin, RetrieveUpdateDestroyAPIView):
         except Exception as e:
             return HttpResponseNotFound(e)
 
-        # TODO: lucas: verify this part doesnt need image post stuff like on
+        # TODO: lucas charles: verify this part doesnt need image post stuff like on
         # line 163 of this file.\
 
         # adding post to inbox of current author

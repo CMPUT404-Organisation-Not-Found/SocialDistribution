@@ -34,35 +34,6 @@ class Category(models.Model):
     def __str__(self):
         return self.cat
 
-class Followers(models.Model):
-    type = models.CharField(default='followers', max_length=200)
-    user = models.OneToOneField(to=Author,
-                                on_delete=models.CASCADE,
-                                related_name='user')
-    items = models.ManyToManyField(to=Author,
-                                related_name='items', blank=True)
-    def to_dict(self):
-        return {
-            'type': self.type,
-            'users_following': self.items,
-            'user_followed': self.user,
-        }
-
-    def __str__(self):
-        return self.user.username
-    # def add_friend(self):
-    #     pass
-
-
-
-
-class FollowerCount(models.Model):
-    # follower is who logged in now # user.usernamr
-    follower = models.CharField(max_length=100)
-    user = models.CharField(max_length=100)
-
-    def __str__(self):
-        return self.user
 
 class Followers(models.Model):
     type = models.CharField(default='followers', max_length=200)
@@ -157,6 +128,7 @@ class FriendFollowRequest(models.Model):
         Followers.objects.get(user=self.object).items.add(self.actor)
         self.delete()
 
+
 class Post(models.Model):
     type = models.CharField(default='post', max_length=200)
     title = models.CharField(max_length=200)
@@ -233,51 +205,6 @@ class Comment(models.Model):
 class Liked(models.Model):
     type = models.CharField(default='liked', max_length=200)
     items = models.ManyToManyField(to=Like)
-
-
-class Inbox(models.Model):
-    type = models.CharField(default='inbox', max_length=200)
-    author = models.ForeignKey(to=Author, on_delete=models.CASCADE)
-
-    # for reverse lookup of inbox items
-    # https://stackoverflow.com/questions/15306897/django-reverse-lookup-of-foreign-keys
-
-    def __str__(self) -> str:
-        return f"{self.author.username}'s inbox"
-
-    def to_dict(self):
-        return {
-            'type': self.type,
-            'author': self.author.username,
-            # 'items_object': self.items_object.to_dict()
-        }
-
-
-class InboxItem(models.Model):
-    inbox = models.ForeignKey(to=Inbox, on_delete=models.CASCADE)
-    # model field in choices {like, post, comment, friendfollowrequest}
-    choices = [("like", "like"), ("post", "post"), ("comment", "comment"),
-               ("friendfollowrequest", "friendfollowrequest")]
-    inbox_item_type = models.CharField(max_length=20, choices=choices)
-
-    # if inbox item is read
-    is_read = models.BooleanField(default=False)
-
-    # GFK to {like, post, comment, friendfollowrequest}
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    item_id = models.CharField(max_length=255)
-    item = GenericForeignKey('content_type', 'item_id')
-
-    def __str__(self) -> str:
-        return f"{self.inbox.author.username}'s {self.inbox_item_type}: {self.content_type}, {self.item_id}"
-
-    def to_dict(self) -> dict:
-        return {
-            'inbox_item_type': self.inbox_item_type,
-            'content_type': self.content_type,
-            'item_id': self.item_id,
-            'item': self.item.to_dict()
-        }
 
 class ConnectionNode(models.Model):
     """
