@@ -52,10 +52,6 @@ class Followers(models.Model):
     def __str__(self):
         return self.user.username
 
-    # def add_friend(self):
-    #     pass
-
-
 class Inbox(models.Model):
     type = models.CharField(default='inbox', max_length=200)
     author = models.ForeignKey(to=Author, on_delete=models.CASCADE)
@@ -99,7 +95,6 @@ class InboxItem(models.Model):
             'item_id': self.item_id,
             'item': self.item.to_dict()
         }
-
 
 class FollowerCount(models.Model):
     # follower is who logged in now # user.usernamr
@@ -210,7 +205,7 @@ class ConnectionNode(models.Model):
     """
         Class to contain the connection node information of other
         nodes
-        service_url INCLUDES the backslash at the end
+        url INCLUDES the backslash at the end
     """
     name = models.CharField(max_length=255)
     url = models.URLField()
@@ -227,7 +222,7 @@ class ConnectionNode(models.Model):
     def to_dict(self):
         return {
             'name': self.name,
-            'service_url': self.url,
+            'url': self.url,
             'auth_username': self.auth_username,
             'auth_password': self.auth_password
         }

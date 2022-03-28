@@ -1,6 +1,6 @@
 import json
 from http.client import HTTPResponse
-from urllib import request
+from urllib import request, response
 from itertools import chain
 import requests
 from multiprocessing import context
@@ -25,7 +25,7 @@ from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 
 from .forms import PostForm, CommentForm
-from .models import Author, Post, FollowerCount, Comment, Inbox, Category
+from .models import Author, Post, FollowerCount, Comment, Inbox, Category, ConnectionNode
 
 from . import serializers, renderers, pagination
 from .pagination import CustomPageNumberPagination
@@ -45,24 +45,13 @@ from requests.auth import HTTPBasicAuth
 import re
 import base64
 
-nodeArray = [
-    'https://cmput404-w22-project-backend.herokuapp.com/service/',
-    'https://cmput4042ndnetwork.herokuapp.com/service/',
-    'https://social-dist-wed.herokuapp.com/service/'
-]
-authDict = {
-    'https://cmput404-w22-project-backend.herokuapp.com/service/':
-    ['proxy', 'proxy123!'],
-    'https://cmput4042ndnetwork.herokuapp.com/service/': ['admin', 'admin'],
-    'https://social-dist-wed.herokuapp.com/service/': ['team02admin', 'admin']
-}
-
-# nodeArray = ['https://social-dist-wed.herokuapp.com/service/']
-# nodeArray = ['http://127.0.0.1:7080/service/']
 localHostList = [
-    'http://127.0.0.1:7070/', 'http://127.0.0.1:8000/', 'https://localhost:8000',
-    'http://localhost:8000', 'https://c404-social-distribution.herokuapp.com/'
+    'http://127.0.0.1:7070/', 'http://127.0.0.1:8000/',
+    'http://localhost:8000', 'http://localhost:8000/',
+    'https://c404-social-distribution.herokuapp.com/'
 ]
+
+connectionNodes = ConnectionNode.objects.all()
 
 
 # Create your views here.
@@ -81,29 +70,26 @@ class PostListView(View):
         # sort responsePosts by published
         responsePosts.sort(key=lambda x: x.published, reverse=True)
 
-        for node in nodeArray:
-            # make get request to other notes /service/authors/
-            response = requests.get(f"{node}authors/",
+        for node in connectionNodes:
+            # make get request to other nodes
+            response = requests.get(f"{node.url}authors/",
                                     params=request.GET,
-                                    auth=HTTPBasicAuth(authDict[node][0],
-                                                       authDict[node][1]))
+                                    auth=HTTPBasicAuth(node.auth_username,
+                                                       node.auth_password))
             if response.status_code == 200:
-                response_contents = response.json()['items']
-                for author in response_contents:
-                    if Author.objects.filter(id=author['id']).exists():
-                        continue
-                    remote_author = Author(
-                        id=author['id'],
-                        username=author['id'].split("/")
-                        [-1],  # username = remote_author.uuid
-                        displayName=author['displayName'],
-                        host=author['host'],
-                        github=author['github'],
-                        profileImage=author['profileImage'])
-                    remote_author.save()
+                authors = response.json()['items']
+                for author in authors:
+                    if not (Author.objects.filter(id=author['id']).exists()):
+                        Author.objects.create(
+                            id=author['id'],
+                            # username = remote_author.uuid
+                            username=author['id'].split('/')[-1],
+                            displayName=author['displayName'],
+                            profileImage=author['profileImage'],
+                            github=author['github'],
+                            host=author['host'])
             else:
-                print("FAILURE")
-            print(response)
+                print(response)
 
         author_list = Author.objects.all()
         context = {
@@ -183,7 +169,6 @@ class NewPostView(View):
                     user__username=user.username).first().items.all()
                 for follower in followersID:
                     # follower is <author> object
-                    # breakpoint()
                     if follower.host in localHostList:
                         # add it to inbox of follower
                         InboxItem.objects.create(
@@ -195,16 +180,18 @@ class NewPostView(View):
                     else:
                         # if author is not local make post request to add to other user inbox
                         serializer = serializers.PostSerializer(newPost)
-
-                        ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
-                        authDictKey = follower.host + "/service/"
+                       
+                        # get follower node object
+                        followerNode = connectionNodes.filter(
+                            url=f"{follower.host}service/").first()
                         req = requests.Request(
                             'POST',
-                            f"{follower.host}/service/authors/{follower.username}/inbox",
+                            f"{followerNode.url}authors/{follower.username}/inbox",
                             data=json.dumps(serializer.data),
-                            auth=HTTPBasicAuth(authDict[authDictKey][0],
-                                               authDict[authDictKey][1]),
+                            auth=HTTPBasicAuth(followerNode.auth_username,
+                                               followerNode.auth_password),
                             headers={'Content-Type': 'application/json'})
+
                         prepared = req.prepare()
 
                         s = requests.Session()
@@ -473,24 +460,20 @@ def profile(request, user_id):
     # get github info
     github_username = current_author_info.github.split("/")[-1]
 
-    localURL = f"http://{request.get_host()}/service/"
     posts = []
 
     response_contents = None
     # original UUID from Original server for current_author_info
     current_author_original_uuid = current_author_info.id.split('/')[-1]
 
-    # use API calls to get posts
-    modifiedNodeArray = nodeArray.copy()  # adding our local to node array
-    # modifiedNodeArray.append(localURL)
-    for node in modifiedNodeArray:
+    for node in connectionNodes:
         response = requests.get(
-            f"{node}authors/{current_author_original_uuid}/posts/",
+            f"{node.url}authors/{current_author_original_uuid}/posts/",
             params=request.GET,
-            auth=HTTPBasicAuth(authDict[node][0], authDict[node][1]))
+            auth=HTTPBasicAuth(node.auth_username, node.auth_password))
         if response.status_code == 200:
-            response_contents = response.json()['items']
-            posts = response_contents
+            # TODO: Might have to accomodate for pagination once that is implemented
+            posts = response.json()['items']
         else:
             pass
 
@@ -527,6 +510,7 @@ def profile(request, user_id):
 def follow(request):
     # print("follow is working")
     # payload = {}
+    # TODO: maybe change name to something else instead of object?
     if request.method == 'POST':
         actorName = request.POST['follower']
         objectName = request.POST['user']
@@ -543,7 +527,6 @@ def follow(request):
             # delete_follower.delete()
             # raise Exception('Friend request canceled')
         else:
-            # localHostList = ['http://127.0.0.1:8000/', 'http://localhost:8000', 'https://cmput4042ndnetwork.herokuapp.com/']
             if object.host in localHostList:
                 print("following local users...", object.username)
                 friendRequest = FriendFollowRequest.objects.create(
@@ -564,18 +547,16 @@ def follow(request):
                 print(f"{object.host}/service/authors/{object.username}/inbox")
                 print(json.dumps(serializer.data))
 
-                ### from stack overflow https://stackoverflow.com/questions/20658572/python-requests-print-entire-http-request-raw
-                # req = requests.Request('POST',f"{object.host}service/authors/{object.username}/inbox", data=json.dumps(serializer.data), auth=HTTPBasicAuth('proxy','proxy123!'), headers={'Content-Type': 'application/json'})
-                if 'cmput4042ndnetwork' in object.host or object.host in localHostList:
-                    authDictKey = object.host + "/service/"
-                else:
-                    authDictKey = object.host + "service/"
+                # TODO: Su: change this once the 2nd network heroku has been update
+                objectNode = connectionNodes.filter(
+                    url=f"{object.host}service/").first()
+                
                 req = requests.Request(
                     'POST',
-                    f"{object.host}/service/authors/{object.username}/inbox",
+                    f"{objectNode.url}authors/{object.username}/inbox",
                     data=json.dumps(serializer.data),
-                    auth=HTTPBasicAuth(authDict[authDictKey][0],
-                                       authDict[authDictKey][1]),
+                    auth=HTTPBasicAuth(objectNode.auth_username,
+                                       objectNode.auth_password),
                     headers={'Content-Type': 'application/json'})
                 prepared = req.prepare()
 
@@ -586,13 +567,6 @@ def follow(request):
         return redirect('myapp:profile', user_id=objectName)
     else:
         return redirect('/')
-        #     payload['response'] = 'Friend request sent'
-        # if payload['response'] == None:
-        #     payload['response'] = 'Something went wrong'
-    # return HttpResponse(json.dumps(payload), content_type='application/json')
-    #     else:
-    #
-    #         return redirect('myapp:profile', user_id=object)
 
 
 @login_required(login_url='/accounts/login')
@@ -622,29 +596,12 @@ def acceptFriendRequest(request, actor_id):
             return render(request, 'feed.html')
 
 
-# @login_required(login_url='/accounts/login')
-# def search(request):
-#     # TODO: Move this up
-#     import requests
-#     author_list = Author.objects.all()
-#     # get all authors from other nodes, append it
-#     raise ValueError('u kdf')
-#     for node in nodeArray:
-#         # make get request to other notes /service/authors/
-#         response = requests.get(f"{node}authors/", params=request.GET)
-#         if response.status_code == 200:
-#             print("SUCCESS")
-#         else:
-#             print("FAILURE")
-#         print(response)
-#         # create them into author objects
-#         # append them in to list, return them
-#     return render(request, 'feed.html', {'author_list':author_list})
-
-
 @login_required(login_url='/accounts/login')
 def getuser(request):
-    username = request.GET['username']
+    try:
+        username = request.GET['username']
+    except:
+        return redirect('myapp:postList')
     try:
         current_author_info = Author.objects.get(displayName=username)
     except:
