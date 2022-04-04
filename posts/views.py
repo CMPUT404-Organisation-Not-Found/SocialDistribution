@@ -982,7 +982,7 @@ class CommentsAPIView(CreateModelMixin, ListAPIView):
     def list(self, request, *args, **kwargs):
         post_id = self.kwargs['post']
         serializer = serializers.CommentsSerializer(
-            Comment.objects.filter(post=post_id), many=True)
+            Comment.objects.filter(id__contains=post_id), many=True)
         return Response({"type": "comments", "items": serializer.data})
 
     def post(self, request, *args, **kwargs):
