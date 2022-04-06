@@ -89,7 +89,7 @@ class NewPostView(View):
                     origin=newPost.origin,
                     visibility="PUBLIC",
                     post_image=newPost.post_image,
-                    image_b64=base64.b64encode(img_file.read())
+                    # image_b64=base64.b64encode(img_file.read())
                 )
                 # newImagePost.save(commit=False)
                 if "jpeg" in newPost.post_image.name:
@@ -100,6 +100,7 @@ class NewPostView(View):
                     newImagePost.contentType = "application/base64"
                 newImagePost.url = newPost.author.host + "post/unlisted/" + str(newImagePost.uuid)
                 newImagePost.id = f"{newPost.author.host}authors/{str(newPost.author.uuid)}/posts/{str(newImagePost.uuid)}"
+                newImagePost.image_b64 = base64.b64encode(img_file.read())
                 # print(newPost.image_b64[:20])
                 newImagePost.save()
                 newPost.contentType = "text/markdown"
