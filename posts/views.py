@@ -280,10 +280,12 @@ class UnlistedPostDetailView(View):
 
     def get(self, request, pk, *args, **kwargs):
         post = Post.objects.filter(uuid=pk).first()
-        if post.image_b64 != None:
-            image_b64 = post.image_b64.decode('utf-8')
-        else:
-            image_b64 = None
+        img_file = open(post.post_image.path, "rb")
+        # if post.image_b64 != None:
+        #     image_b64 = post.image_b64.decode('utf-8')
+        # else:
+        #     image_b64 = None
+        image_b64 = base64.b64encode(img_file.read()).decode('utf-8')
         context = {
             'post': post,
             'image_b64': image_b64,
@@ -459,20 +461,20 @@ class selectPersonView(View):
         return redirect('inboxes:postList')
 
 
-class UnlistedPostDetailView(View):
-
-    def get(self, request, pk, *args, **kwargs):
-        post = Post.objects.filter(uuid=pk).first()
-        if post.image_b64 != None:
-            image_b64 = post.image_b64.decode('utf-8')
-        else:
-            image_b64 = None
-        context = {
-            'post': post,
-            'image_b64': image_b64,
-        }
-        rendered = render_to_string('unlistedPostDetail.html', context)
-        return HttpResponse(rendered)
+# class UnlistedPostDetailView(View):
+#
+#     def get(self, request, pk, *args, **kwargs):
+#         post = Post.objects.filter(uuid=pk).first()
+#         if post.image_b64 != None:
+#             image_b64 = post.image_b64.decode('utf-8')
+#         else:
+#             image_b64 = None
+#         context = {
+#             'post': post,
+#             'image_b64': image_b64,
+#         }
+#         rendered = render_to_string('unlistedPostDetail.html', context)
+#         return HttpResponse(rendered)
 
 
 @method_decorator(login_required, name='dispatch')
